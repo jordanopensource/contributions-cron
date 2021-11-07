@@ -7,13 +7,17 @@ const parseISO = require("date-fns/parseISO");
 const Organization = require("./models/organization");
 const User = require("./models/user");
 
+require("dotenv").config({
+  path: "./.env",
+});
+
 const octokit = new Octokit({
-  auth: "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",
+  auth: process.env.API_KEY,
 });
 
 const ConnectToDB = async () => {
   await mongoose
-    .connect("mongodb://localhost:27017/top-contributors", {
+    .connect(process.env.DB_URI, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
     })
