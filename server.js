@@ -12,12 +12,12 @@ require("dotenv").config({
 });
 
 const octokit = new Octokit({
-  auth: process.env.API_KEY,
+  auth: process.env.GITHUB_API_KEY,
 });
 
 const ConnectToDB = async () => {
   await mongoose
-    .connect(process.env.DB_URI, {
+    .connect(process.env.DB_URL, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
     })
@@ -452,11 +452,11 @@ const CalculateCommitsCountForUsers = async () => {
 
 async function main() {
   await ConnectToDB();
-  //await SyncUsers();
-  //await SyncOrganizations();
-  //await CalculateScore();
-  //await CalculateCommitsCountForUsers();
-  //await CalculateRepositoriesNumberForOrgs();
+  await SyncUsers();
+  await SyncOrganizations();
+  await CalculateScore();
+  await CalculateCommitsCountForUsers();
+  await CalculateRepositoriesNumberForOrgs();
   await mongoose.connection.close();
   console.log(
     "Mongoose default connection with DB is disconnected through app termination"
