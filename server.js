@@ -241,15 +241,11 @@ const SaveUserContributionsToDB = async () => {
   let users = await GetUsersFromDB({}, {});
   for (const user of users) {
     let userCommits = await ExtractContributionsForUser(user, dateNow, nextDay);
-    if (userCommits.length > 0) {
-      await User.updateOne(
-        { username: user.username },
-        { commit_contributions: userCommits }
-      );
-      console.log(`User: ${user.username}, Contributions Added`);
-    } else {
-      console.log(`User: ${user.username}, Contributions Not Added`);
-    }
+    await User.updateOne(
+      { username: user.username },
+      { commit_contributions: userCommits }
+    );
+    console.log(`User: ${user.username}, Contributions Updated`);
   }
 };
 
