@@ -162,17 +162,18 @@ const GetUserCommitContributionFromDB = async _user => {
 };
 
 const ExtractContributionsForUser = async (_user, _dateNow, _nextDay) => {
-  let commitsContributions = await GetUserCommitContributionFromDB(
-    _user.username
-  );
-  let commits = [];
-  let newResult = {
-    repositoryName: "",
-    starsCount: 0,
-    url: "",
-    commits: commits,
-  };
-  let response = await octokit.graphql(`{
+  try {
+    let commitsContributions = await GetUserCommitContributionFromDB(
+      _user.username
+    );
+    let commits = [];
+    let newResult = {
+      repositoryName: "",
+      starsCount: 0,
+      url: "",
+      commits: commits,
+    };
+    let response = await octokit.graphql(`{
      user(login: "${_user.username}") {
         contributionsCollection(from: "${_dateNow}", to: "${_nextDay}") {
         commitContributionsByRepository {
@@ -194,39 +195,44 @@ const ExtractContributionsForUser = async (_user, _dateNow, _nextDay) => {
     }
   }`);
 
-  let data =
-    response.user.contributionsCollection.commitContributionsByRepository;
+    let data =
+      response.user.contributionsCollection.commitContributionsByRepository;
 
-  for (const contribution of data) {
-    let nodes = contribution.contributions.nodes;
-    for (const node of nodes) {
-      if (!node.repository.isPrivate) {
-        let commitObj = {
-          commitCount: node.commitCount,
-          occurredAt: node.occurredAt,
-        };
-        newResult = {
-          repositoryName: node.repository.name,
-          starsCount: node.repository.stargazerCount,
-          url: node.repository.url,
-          commits: [...commits, commitObj],
-        };
-        let repositoryExists = commitsContributions.some(
-          x => x.repositoryName == node.repository.name
-        );
-        if (repositoryExists) {
-          let objToUpdate = commitsContributions.find(
-            element => element.repositoryName == node.repository.name
+    for (const contribution of data) {
+      let nodes = contribution.contributions.nodes;
+      for (const node of nodes) {
+        if (!node.repository.isPrivate) {
+          let commitObj = {
+            commitCount: node.commitCount,
+            occurredAt: node.occurredAt,
+          };
+          newResult = {
+            repositoryName: node.repository.name,
+            starsCount: node.repository.stargazerCount,
+            url: node.repository.url,
+            commits: [...commits, commitObj],
+          };
+          let repositoryExists = commitsContributions.some(
+            x => x.repositoryName == node.repository.name
           );
-          objToUpdate.starsCount = node.repository.stargazerCount;
-          objToUpdate.commits = [...objToUpdate.commits, commitObj];
-        } else {
-          commitsContributions.push(newResult);
+          if (repositoryExists) {
+            let objToUpdate = commitsContributions.find(
+              element => element.repositoryName == node.repository.name
+            );
+            objToUpdate.starsCount = node.repository.stargazerCount;
+            objToUpdate.commits = [...objToUpdate.commits, commitObj];
+          } else {
+            commitsContributions.push(newResult);
+          }
         }
       }
     }
+    return commitsContributions;
+  } catch (err) {
+    if (err.errors[0].type == "NOT_FOUND") {
+      await User.deleteOne({ username: _user.username });
+    }
   }
-  return commitsContributions;
 };
 
 const SaveUserContributionsToDB = async () => {
@@ -336,13 +342,14 @@ const ExtractOrganizationsFromGithub = async () => {
 };
 
 const ExtractOrganizationRepositoriesFromGithub = async _organization => {
-  let organizationRepositories = await GetOrganizationRepoFromDB(
-    _organization.username
-  );
-  let hasNextPage = true;
-  while (hasNextPage) {
-    let pageCursor = endCursor === null ? `${endCursor}` : `"${endCursor}"`;
-    let response = await octokit.graphql(`{
+  try {
+    let organizationRepositories = await GetOrganizationRepoFromDB(
+      _organization.username
+    );
+    let hasNextPage = true;
+    while (hasNextPage) {
+      let pageCursor = endCursor === null ? `${endCursor}` : `"${endCursor}"`;
+      let response = await octokit.graphql(`{
         organization(login: "${_organization.username}") {
           repositories(privacy: PUBLIC, first: 100, after: ${pageCursor}) {
             nodes {
@@ -357,30 +364,36 @@ const ExtractOrganizationRepositoriesFromGithub = async _organization => {
     }
   }`);
 
-    endCursor = await response.organization.repositories.pageInfo.endCursor;
-    let data = response.organization.repositories.nodes;
+      endCursor = await response.organization.repositories.pageInfo.endCursor;
+      let data = response.organization.repositories.nodes;
 
-    for (const repo of data) {
-      let newResult = {
-        name: repo.name,
-        starsCount: repo.stargazerCount,
-      };
-      let repositoryExists = organizationRepositories.some(
-        x => x.name == repo.name
-      );
-      if (repositoryExists) {
-        let objToUpdate = organizationRepositories.find(
-          element => element.name == repo.name
+      for (const repo of data) {
+        let newResult = {
+          name: repo.name,
+          starsCount: repo.stargazerCount,
+        };
+        let repositoryExists = organizationRepositories.some(
+          x => x.name == repo.name
         );
-        objToUpdate.starsCount = repo.stargazerCount;
-      } else {
-        organizationRepositories.push(newResult);
+        if (repositoryExists) {
+          let objToUpdate = organizationRepositories.find(
+            element => element.name == repo.name
+          );
+          objToUpdate.starsCount = repo.stargazerCount;
+        } else {
+          organizationRepositories.push(newResult);
+        }
       }
+      hasNextPage = await response.organization.repositories.pageInfo
+        .hasNextPage;
     }
-    hasNextPage = await response.organization.repositories.pageInfo.hasNextPage;
-  }
 
-  return organizationRepositories;
+    return organizationRepositories;
+  } catch (err) {
+    if (err.errors[0].type == "NOT_FOUND") {
+      await Organization.deleteOne({ username: _user.username });
+    }
+  }
 };
 
 const SyncOrganizations = async () => {
@@ -457,6 +470,7 @@ async function main() {
   await CalculateScore();
   await CalculateCommitsCountForUsers();
   await CalculateRepositoriesNumberForOrgs();
+
   await mongoose.connection.close();
   console.log(
     "Mongoose default connection with DB is disconnected through app termination"
