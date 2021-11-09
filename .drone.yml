@@ -11,10 +11,10 @@ node_selector:
   doks.digitalocean.com/node-pool: josa-cloud-np
 
 steps:
-  - name: build and release top-contributors-cron
+  - name: build and release contributions-cron
     image: plugins/docker
     settings:
-      repo: josaorg/top-contributors-cron
+      repo: josaorg/contributions-cron
       tags:
         - ${DRONE_COMMIT_SHA}
         - latest
@@ -30,4 +30,4 @@ steps:
         from_secret: slack_webhook
       channel: heartbeat
     depends_on:
-      - build and release top-contributors-cron
+      - build and release contributions-cron
