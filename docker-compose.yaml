@@ -6,9 +6,9 @@ services:
     container_name: contributions-cron
     restart: unless-stopped
     environment:
-      DB_URL: mongodb://mongodb:27017
+      DB_URL: mongodb://mongodb:27017/top-contributors
       PORT: 8080
-      GITHUB_API_KEY: << INSERT GITHUB API TOKEN HERE >>
+      GITHUB_API_KEY: << INSERT GH API KEY HERE >>
     networks:
       - contributions-network
     ports:
@@ -16,7 +16,7 @@ services:
   
   mongodb:
     image: mongo
-    container_name: mongoedb
+    container_name: mongodb
     restart: unless-stopped
     environment:
       MONGO_INITDB_DATABASE: top-contributors

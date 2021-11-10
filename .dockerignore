@@ -25,3 +25,6 @@ SECURITY.md
 
 # Drone
 .drone.yml
+
+# enviornment
+.env
