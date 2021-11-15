@@ -113,7 +113,7 @@ const ExtractUsersFromGithub = async () => {
   for (let index = 0; index < locationsToSearch.length; index++) {
     let result = await octokit.graphql(
       `{
-        search(query: "location:${locationsToSearch[index]} type:user sort:joined", type: USER, first: 50) {
+        search(query: "location:${locationsToSearch[index]} type:user sort:joined", type: USER, first: 20) {
         userCount
         nodes {
           ... on User {
@@ -155,9 +155,6 @@ const GetUsersFromDB = async (_filter = {}, _sort = {}) => {
 const GetUserCommitContributionFromDB = async _user => {
   let user = await User.findOne({ username: _user });
   let userCommits = user.commit_contributions;
-  if (userCommits.length <= 0) {
-    console.log(`User: ${_user}, doesn't have commits`);
-  }
   return userCommits;
 };
 
@@ -307,7 +304,7 @@ const ExtractOrganizationsFromGithub = async () => {
   for (let index = 0; index < locationsToSearch.length; index++) {
     let result = await octokit.graphql(`
         {
-          search(query: "location:${locationsToSearch[index]} type:org sort:joined", type: USER, first: 30) {
+          search(query: "location:${locationsToSearch[index]} type:org sort:joined", type: USER, first: 20) {
           userCount
           nodes {
           ... on Organization {
@@ -326,7 +323,6 @@ const ExtractOrganizationsFromGithub = async () => {
       }
   }
 }`);
-    endCursor = await result.search.pageInfo.endCursor;
     let newOrg = await result.search.nodes;
     for (const org of newOrg) {
       if (IsInJordan(org.location)) {
@@ -387,7 +383,7 @@ const ExtractOrganizationRepositoriesFromGithub = async _organization => {
     return organizationRepositories;
   } catch (err) {
     if (err.errors[0].type == "NOT_FOUND") {
-      await Organization.deleteOne({ username: _user.username });
+      await Organization.deleteOne({ username: _organization.username });
     }
   }
 };
