@@ -338,6 +338,7 @@ const ExtractOrganizationRepositoriesFromGithub = async _organization => {
     let organizationRepositories = await GetOrganizationRepoFromDB(
       _organization.username
     );
+    let endCursor = null;
     let hasNextPage = true;
     while (hasNextPage) {
       let pageCursor = endCursor === null ? `${endCursor}` : `"${endCursor}"`;
@@ -457,7 +458,7 @@ const CalculateCommitsCountForUsers = async () => {
 
 async function main() {
   await ConnectToDB();
-  await SyncUsers();
+  //await SyncUsers();
   await SyncOrganizations();
   await CalculateScore();
   await CalculateCommitsCountForUsers();
