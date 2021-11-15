@@ -8,7 +8,7 @@ const Organization = require("./models/organization");
 const User = require("./models/user");
 
 require("dotenv").config({
-  path: "./.env",
+  path: "./config.env",
 });
 
 const octokit = new Octokit({
