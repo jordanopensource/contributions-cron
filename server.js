@@ -383,7 +383,7 @@ const ExtractOrganizationRepositoriesFromGithub = async _organization => {
     return organizationRepositories;
   } catch (err) {
     if (err.errors[0].type == "NOT_FOUND") {
-      await Organization.deleteOne({ username: _user.username });
+      await Organization.deleteOne({ username: _organization.username });
     }
   }
 };
