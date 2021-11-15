@@ -155,9 +155,6 @@ const GetUsersFromDB = async (_filter = {}, _sort = {}) => {
 const GetUserCommitContributionFromDB = async _user => {
   let user = await User.findOne({ username: _user });
   let userCommits = user.commit_contributions;
-  if (userCommits.length <= 0) {
-    console.log(`User: ${_user}, doesn't have commits`);
-  }
   return userCommits;
 };
 
