@@ -334,13 +334,13 @@ const ExtractOrganizationsFromGithub = async () => {
 };
 
 const ExtractOrganizationRepositoriesFromGithub = async _organization => {
-  try {
-    let organizationRepositories = await GetOrganizationRepoFromDB(
-      _organization.username
-    );
-    let endCursor = null;
-    let hasNextPage = true;
-    while (hasNextPage) {
+  let organizationRepositories = await GetOrganizationRepoFromDB(
+    _organization.username
+  );
+  let endCursor = null;
+  let hasNextPage = true;
+  while (hasNextPage) {
+    try {
       let pageCursor = endCursor === null ? `${endCursor}` : `"${endCursor}"`;
       let response = await octokit.graphql(`{
         organization(login: "${_organization.username}") {
@@ -377,14 +377,14 @@ const ExtractOrganizationRepositoriesFromGithub = async _organization => {
           organizationRepositories.push(newResult);
         }
       }
+
       hasNextPage = await response.organization.repositories.pageInfo
         .hasNextPage;
-    }
-
-    return organizationRepositories;
-  } catch (err) {
-    if (err.errors[0].type == "NOT_FOUND") {
-      await Organization.deleteOne({ username: _organization.username });
+      return organizationRepositories;
+    } catch (err) {
+      if (err.errors[0].type == "NOT_FOUND") {
+        await Organization.deleteOne({ username: _organization.username });
+      }
     }
   }
 };
