@@ -113,7 +113,7 @@ const ExtractUsersFromGithub = async () => {
   for (let index = 0; index < locationsToSearch.length; index++) {
     let result = await octokit.graphql(
       `{
-        search(query: "location:${locationsToSearch[index]} type:user sort:joined", type: USER, first: 20) {
+        search(query: "location:${locationsToSearch[index]} type:user sort:joined", type: USER, first: 10) {
         userCount
         nodes {
           ... on User {
@@ -304,7 +304,7 @@ const ExtractOrganizationsFromGithub = async () => {
   for (let index = 0; index < locationsToSearch.length; index++) {
     let result = await octokit.graphql(`
         {
-          search(query: "location:${locationsToSearch[index]} type:org sort:joined", type: USER, first: 20) {
+          search(query: "location:${locationsToSearch[index]} type:org sort:joined", type: USER, first: 10) {
           userCount
           nodes {
           ... on Organization {
@@ -458,7 +458,7 @@ const CalculateCommitsCountForUsers = async () => {
 
 async function main() {
   await ConnectToDB();
-  //await SyncUsers();
+  await SyncUsers();
   await SyncOrganizations();
   await CalculateScore();
   await CalculateCommitsCountForUsers();
