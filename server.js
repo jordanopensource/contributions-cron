@@ -407,18 +407,25 @@ const ExtractOrganizationRepositoriesFromGithub = async _organization => {
 };
 
 const SyncOrganizations = async () => {
+  console.log(
+    "Database Started Syncing Organizations\n-------------------------"
+  );
   await ExtractOrganizationsFromGithub();
   await SaveOrganizationsRepositoriesToDB();
-  console.log("Database Finished Syncing Organizations");
+  console.log(
+    "Database Finished Syncing Organizations\n-------------------------"
+  );
 };
 
 const SyncUsers = async () => {
+  console.log("Database Started Syncing Users\n-------------------------");
   await ExtractUsersFromGithub();
   await SaveUserContributionsToDB();
-  console.log("Database Finished Syncing Users");
+  console.log("Database Finished Syncing Users\n-------------------------");
 };
 
 const CalculateScore = async () => {
+  console.log("Cron Started Calculating Score\n-------------------------");
   let users = await GetUsersFromDB({}, {});
   for (const user of users) {
     let score = 0;
@@ -437,9 +444,14 @@ const CalculateScore = async () => {
       }
     }
   }
+  console.log("Cron Finished Calculating Score\n-------------------------");
 };
 
 const CalculateRepositoriesNumberForOrgs = async () => {
+  console.log(
+    "Cron Started Calculating Repositories Number For The Organizations\n-------------------------"
+  );
+
   let orgs = await Organization.find({});
   for (const org of orgs) {
     let numberOfRepositories = 0;
@@ -456,9 +468,15 @@ const CalculateRepositoriesNumberForOrgs = async () => {
       );
     }
   }
+  console.log(
+    "Cron Finished Calculating Repositories Number For The Organizations\n-------------------------"
+  );
 };
 
 const CalculateCommitsCountForUsers = async () => {
+  console.log(
+    "Cron Started Calculating Commits Count For The Users\n-------------------------"
+  );
   let users = await User.find({});
   for (const user of users) {
     let userCommitsCount = 0;
@@ -477,6 +495,9 @@ const CalculateCommitsCountForUsers = async () => {
       );
     }
   }
+  console.log(
+    "Cron Finished Calculating Commits Count For The Users\n-------------------------"
+  );
 };
 
 async function main() {
