@@ -87,11 +87,15 @@ const SaveUsersToDB = async _usersData => {
         user_createdAt: user.createdAt,
       });
       await newUser.save();
-      console.log(
-        `User: ${newUser.username} and the location is ${newUser.location} was saved to DB`
-      );
+      if (process.env.NODE_ENV !== "production") {
+        console.log(
+          `User: ${newUser.username} and the location is ${newUser.location} was saved to DB`
+        );
+      }
     } else {
-      console.log(`User: ${user.login} Exists`);
+      if (process.env.NODE_ENV !== "production") {
+        console.log(`User: ${user.login} Exists`);
+      }
     }
   }
 };
@@ -242,7 +246,9 @@ const SaveUserContributionsToDB = async () => {
       { username: user.username },
       { commit_contributions: userCommits }
     );
-    console.log(`User: ${user.username}, Contributions Updated`);
+    if (process.env.NODE_ENV !== "production") {
+      console.log(`User: ${user.username}, Contributions Updated`);
+    }
   }
 };
 
@@ -260,11 +266,15 @@ const SaveOrganizationsToDB = async _organizations => {
         org_createdAt: org.createdAt,
       });
       await newOrg.save();
-      console.log(
-        `Organization: ${newOrg.username} and the location is ${newOrg.location} was saved to DB`
-      );
+      if (process.env.NODE_ENV !== "production") {
+        console.log(
+          `Organization: ${newOrg.username} and the location is ${newOrg.location} was saved to DB`
+        );
+      }
     } else {
-      console.log(`Organization: ${org.login} Exists`);
+      if (process.env.NODE_ENV !== "production") {
+        console.log(`Organization: ${org.login} Exists`);
+      }
     }
   }
 };
@@ -283,7 +293,9 @@ const SaveOrganizationsRepositoriesToDB = async () => {
       { username: org.username },
       { repositories: orgRepos }
     );
-    console.log(`Organization: ${org.username}, Repositories Added`);
+    if (process.env.NODE_ENV !== "development") {
+      console.log(`Organization: ${org.username}, Repositories Added`);
+    }
   }
 };
 
@@ -415,7 +427,9 @@ const CalculateScore = async () => {
     }
     if (score > 0) {
       await User.updateOne({ username: user.username }, { score: score });
-      console.log(`User: ${user.name}, score calculated: ${score}`);
+      if (process.env.NODE_ENV !== "production") {
+        console.log(`User: ${user.name}, score calculated: ${score}`);
+      }
     }
   }
 };
@@ -431,9 +445,11 @@ const CalculateRepositoriesNumberForOrgs = async () => {
       { username: org.username },
       { repositories_count: numberOfRepositories }
     );
-    console.log(
-      `Org: ${org.username}, repositories Number: ${numberOfRepositories}`
-    );
+    if (process.env.NODE_ENV !== "production") {
+      console.log(
+        `Org: ${org.username}, repositories Number: ${numberOfRepositories}`
+      );
+    }
   }
 };
 
@@ -450,9 +466,11 @@ const CalculateCommitsCountForUsers = async () => {
       { username: user.username },
       { commitsTotalCount: userCommitsCount }
     );
-    console.log(
-      `User: ${user.username}, user commits Count: ${userCommitsCount}`
-    );
+    if (process.env.NODE_ENV !== "production") {
+      console.log(
+        `User: ${user.username}, user commits Count: ${userCommitsCount}`
+      );
+    }
   }
 };
 
@@ -466,7 +484,7 @@ async function main() {
 
   await mongoose.connection.close();
   console.log(
-    "Mongoose default connection with DB is disconnected through app termination"
+    "Mongoose default connection with DB is disconnected, the job is finished."
   );
 }
 
