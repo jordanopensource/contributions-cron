@@ -220,8 +220,13 @@ const ExtractContributionsForUser = async (_user, _dateNow, _nextDay) => {
             let objToUpdate = commitsContributions.find(
               element => element.repositoryName == node.repository.name
             );
+            let commitExists = objToUpdate.commits.some(
+              x => x.occurredAt == node.occurredAt
+            );
             objToUpdate.starsCount = node.repository.stargazerCount;
-            objToUpdate.commits = [...objToUpdate.commits, commitObj];
+            if (!commitExists) {
+              objToUpdate.commits = [...objToUpdate.commits, commitObj];
+            }
           } else {
             commitsContributions.push(newResult);
           }
