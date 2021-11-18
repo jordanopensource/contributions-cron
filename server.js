@@ -298,7 +298,7 @@ const SaveOrganizationsRepositoriesToDB = async () => {
       { username: org.username },
       { repositories: orgRepos }
     );
-    if (process.env.NODE_ENV !== "development") {
+    if (process.env.NODE_ENV !== "production") {
       console.log(`Organization: ${org.username}, Repositories Added`);
     }
   }
@@ -514,4 +514,6 @@ async function main() {
   );
 }
 
-main().catch(err => console.log(err));
+main().catch(err =>
+  console.log(`Error "TIME LIMIT" please wait then restart again: ${err}`)
+);
