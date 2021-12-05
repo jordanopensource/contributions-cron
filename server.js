@@ -38,6 +38,8 @@ const GetNextDay = () => {
   return nextDay;
 };
 
+const blockedRepos = ["first-contributions"];
+
 const IsInJordan = _location => {
   const locationKeyWords = [
     "Irbid",
