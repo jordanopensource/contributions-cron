@@ -213,22 +213,24 @@ const ExtractContributionsForUser = async (_user, _dateNow, _nextDay) => {
             url: node.repository.url,
             commits: [...commits, commitObj],
           };
-          let repositoryExists = commitsContributions.some(
-            x => x.repositoryName == node.repository.name
-          );
-          if (repositoryExists) {
-            let objToUpdate = commitsContributions.find(
-              element => element.repositoryName == node.repository.name
+          if (newResult.repositoryName !== "first-contributions") {
+            let repositoryExists = commitsContributions.some(
+              x => x.repositoryName == node.repository.name
             );
-            let commitExists = objToUpdate.commits.some(
-              x => x.occurredAt == node.occurredAt
-            );
-            objToUpdate.starsCount = node.repository.stargazerCount;
-            if (!commitExists) {
-              objToUpdate.commits = [...objToUpdate.commits, commitObj];
+            if (repositoryExists) {
+              let objToUpdate = commitsContributions.find(
+                element => element.repositoryName == node.repository.name
+              );
+              let commitExists = objToUpdate.commits.some(
+                x => x.occurredAt == node.occurredAt
+              );
+              objToUpdate.starsCount = node.repository.stargazerCount;
+              if (!commitExists) {
+                objToUpdate.commits = [...objToUpdate.commits, commitObj];
+              }
+            } else {
+              commitsContributions.push(newResult);
             }
-          } else {
-            commitsContributions.push(newResult);
           }
         }
       }
