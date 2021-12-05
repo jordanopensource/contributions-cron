@@ -38,6 +38,14 @@ const GetNextDay = () => {
   return nextDay;
 };
 
+const blockedRepos = ["first-contributions"];
+
+const isRepoBlocked = _repoName => {
+  for (const repo of blockedRepos) {
+    return _repoName === repo;
+  }
+};
+
 const IsInJordan = _location => {
   const locationKeyWords = [
     "Irbid",
@@ -213,7 +221,7 @@ const ExtractContributionsForUser = async (_user, _dateNow, _nextDay) => {
             url: node.repository.url,
             commits: [...commits, commitObj],
           };
-          if (newResult.repositoryName !== "first-contributions") {
+          if (!isRepoBlocked(newResult.repositoryName)) {
             let repositoryExists = commitsContributions.some(
               x => x.repositoryName == node.repository.name
             );
