@@ -447,11 +447,10 @@ const CalculateScore = async () => {
         score += scoreToAdd;
       }
     }
-    if (score > 0) {
-      await User.updateOne({ username: user.username }, { score: score });
-      if (process.env.NODE_ENV !== "production") {
-        console.log(`User: ${user.name}, score calculated: ${score}`);
-      }
+
+    await User.updateOne({ username: user.username }, { score: score });
+    if (process.env.NODE_ENV !== "production") {
+      console.log(`User: ${user.name}, score calculated: ${score}`);
     }
   }
   console.log("Cron Finished Calculating Score\n-------------------------");
