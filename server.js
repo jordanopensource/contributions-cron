@@ -509,6 +509,29 @@ const CalculateCommitsCountForUsers = async () => {
   );
 };
 
+const RankUsersByScore = _usersArray => {
+  let startingRank = 1;
+  let currentRank = startingRank;
+  let rankValue = null;
+  let userRanks = [];
+
+  let usersSorted = _usersArray.sort((a, b) => {
+    return b.score - a.score;
+  });
+  usersSorted.forEach(user => {
+    if (user.score !== rankValue && rankValue !== null) {
+      currentRank++;
+    }
+    userRanks.push({
+      user,
+      currentRank,
+    });
+    rankValue = user.score;
+  });
+
+  return userRanks;
+};
+
 async function main() {
   await ConnectToDB();
   await SyncUsers();
