@@ -510,6 +510,7 @@ const CalculateCommitsCountForUsers = async () => {
 };
 
 const RankUsersByScore = _usersArray => {
+  console.log("Cron Started Ranking Users By Score\n-------------------------");
   let startingRank = 1;
   let currentRank = startingRank;
   let rankValue = null;
@@ -529,10 +530,16 @@ const RankUsersByScore = _usersArray => {
     rankValue = user.score;
   });
 
+  console.log(
+    "Cron Finished Ranking Users By Score\n-------------------------"
+  );
   return userRanks;
 };
 
 const RankUsersByContributions = _usersArray => {
+  console.log(
+    "Cron Started Ranking Users By Contributions\n-------------------------"
+  );
   let startingRank = 1;
   let currentRank = startingRank;
   let rankValue = null;
@@ -551,7 +558,9 @@ const RankUsersByContributions = _usersArray => {
     });
     rankValue = user.commitsTotalCount;
   });
-
+  console.log(
+    "Cron Started Ranking Users By Contributions\n-------------------------"
+  );
   return userRanks;
 };
 
