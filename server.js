@@ -591,8 +591,35 @@ const UpdateUsersScoreRanks = async () => {
   );
 };
 
+const UpdateUsersContributionsRanks = async () => {
+  console.log(
+    "Cron Started Updating Users Contributions Ranks\n-------------------------"
+  );
+  let users = await User.find({}, "username commitsTotalCount").sort({
+    commitsTotalCount: -1,
+    _id: 1,
+  });
+  const usersRankedByContributions = RankUsersByContributions(users);
+
+  for (const element of usersRankedByContributions) {
+    const doc = await User.findOne({ "username": element.user.username });
+    doc.contributions_rank = element.currentRank;
+    const saved = await doc.save();
+
+    if (process.env.NODE_ENV !== "production") {
+      if (saved) {
+        console.log(`User ${element.user.username} Got Saved`);
+      }
+    }
+  }
+  console.log(
+    "Cron Finished Updating Users Contributions Ranks\n-------------------------"
+  );
+};
+
 const UpdateUsersRanks = async () => {
   await UpdateUsersScoreRanks();
+  await UpdateUsersContributionsRanks();
 };
 
 async function main() {
