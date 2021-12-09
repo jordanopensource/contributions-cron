@@ -516,7 +516,7 @@ const RankUsersByScore = _usersArray => {
   let rankValue = null;
   let userRanks = [];
 
-  let usersSorted = _usersArray.sort((a, b) => {
+  let usersSorted = _usersArray.slice().sort((a, b) => {
     return b.score - a.score;
   });
   usersSorted.forEach(user => {
@@ -558,10 +558,41 @@ const RankUsersByContributions = _usersArray => {
     });
     rankValue = user.commitsTotalCount;
   });
+
   console.log(
-    "Cron Started Ranking Users By Contributions\n-------------------------"
+    "Cron Finished Ranking Users By Contributions\n-------------------------"
   );
   return userRanks;
+};
+
+const UpdateUsersScoreRanks = async () => {
+  console.log(
+    "Cron Started Updating Users Score Ranks\n-------------------------"
+  );
+  let users = await User.find({}, "username score").sort({
+    score: -1,
+    _id: 1,
+  });
+  const usersRankedByScore = RankUsersByScore(users);
+
+  for (const element of usersRankedByScore) {
+    const doc = await User.findOne({ "username": element.user.username });
+    doc.score_rank = element.currentRank;
+    const saved = await doc.save();
+
+    if (process.env.NODE_ENV !== "production") {
+      if (saved) {
+        console.log(`User ${element.user.username} Got Saved`);
+      }
+    }
+  }
+  console.log(
+    "Cron Finished Updating Users Score Ranks\n-------------------------"
+  );
+};
+
+const UpdateUsersRanks = async () => {
+  await UpdateUsersScoreRanks();
 };
 
 async function main() {
@@ -571,6 +602,7 @@ async function main() {
   await CalculateScore();
   await CalculateCommitsCountForUsers();
   await CalculateRepositoriesNumberForOrgs();
+  await UpdateUsersRanks();
 
   await mongoose.connection.close();
   console.log(
