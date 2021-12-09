@@ -3,14 +3,22 @@ const Schema = mongoose.Schema;
 
 const userSchema = new Schema(
   {
+    score_rank: {
+      type: Number,
+    },
+    contributions_rank: {
+      type: Number,
+    },
     username: {
       // login
       type: String,
       required: true,
+      unique: true,
     },
     github_id: {
       type: String,
       required: true,
+      unique: true,
     },
     avatar_url: {
       type: String,
@@ -44,9 +52,11 @@ const userSchema = new Schema(
     },
     score: {
       type: Number,
+      default: 0,
     },
     commitsTotalCount: {
       type: Number,
+      default: 0,
     },
   },
   { timestamps: true }
