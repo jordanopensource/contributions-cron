@@ -623,7 +623,7 @@ const UpdateUsersRanks = async () => {
 };
 
 async function main() {
-  await ConnectToDB();
+  // await ConnectToDB();
   await SyncUsers();
   await SyncOrganizations();
   await CalculateScore();
@@ -641,7 +641,7 @@ async function main() {
 main();
 
 // listen for uncaught exceptions events
-process.on("uncaughtException", err => {
+process.on("uncaughtException", async err => {
   await mongoose.connection.close(); // close the database connection before exiting
   console.error(`Error while doing my job "THE ERROR": ${err}`); // logging the uncaught error
   process.exit(1); // exit with failure
