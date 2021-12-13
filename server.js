@@ -637,6 +637,7 @@ async function main() {
   );
 }
 
-main().catch(err =>
-  console.log(`Error while doing my job "THE ERROR": ${err}`)
-);
+main().catch(err => {
+  await mongoose.connection.close();
+  console.log(`Error while doing my job "THE ERROR": ${err}`);
+});
