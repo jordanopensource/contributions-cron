@@ -638,5 +638,5 @@ async function main() {
 }
 
 main().catch(err =>
-  console.log(`Error "TIME LIMIT" please wait then restart again: ${err}`)
+  console.log(`Error while doing my job "THE ERROR": ${err}`)
 );
