@@ -635,8 +635,14 @@ async function main() {
   console.log(
     "Mongoose default connection with DB is disconnected, the job is finished."
   );
+  process.exit(0); // program will exit successfully
 }
 
-main().catch(err =>
-  console.log(`Error "TIME LIMIT" please wait then restart again: ${err}`)
-);
+main();
+
+// listen for uncaught exceptions events
+process.on("uncaughtException", err => {
+  await mongoose.connection.close(); // close the database connection before exiting
+  console.error(`Error while doing my job "THE ERROR": ${err}`); // logging the uncaught error
+  process.exit(1); // exit with failure
+});
