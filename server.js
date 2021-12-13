@@ -635,6 +635,7 @@ async function main() {
   console.log(
     "Mongoose default connection with DB is disconnected, the job is finished."
   );
+  process.exit(0); // program will exit successfully
 }
 
 main();
