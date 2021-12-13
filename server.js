@@ -623,7 +623,7 @@ const UpdateUsersRanks = async () => {
 };
 
 async function main() {
-  // await ConnectToDB();
+  await ConnectToDB();
   await SyncUsers();
   await SyncOrganizations();
   await CalculateScore();
