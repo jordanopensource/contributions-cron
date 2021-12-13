@@ -640,4 +640,5 @@ async function main() {
 main().catch(err => {
   await mongoose.connection.close();
   console.log(`Error while doing my job "THE ERROR": ${err}`);
+  process.exit(1);
 });
