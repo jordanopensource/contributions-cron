@@ -646,3 +646,10 @@ process.on("uncaughtException", async err => {
   console.error(`Error while doing my job "THE ERROR": ${err}`); // logging the uncaught error
   process.exit(1); // exit with failure
 });
+
+// listen to the signal that tells the program to gracefully terminate.
+process.on("SIGTERM", async () => {
+  await mongoose.connection.close(); // close the database connection before exiting
+  console.log(`Program is gracefully terminating`); // logging the termination
+  process.exit(0); // exit with success
+});
