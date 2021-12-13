@@ -637,8 +637,11 @@ async function main() {
   );
 }
 
-main().catch(err => {
-  await mongoose.connection.close();
-  console.log(`Error while doing my job "THE ERROR": ${err}`);
-  process.exit(1);
+main();
+
+// listen for uncaught exceptions events
+process.on("uncaughtException", err => {
+  await mongoose.connection.close(); // close the database connection before exiting
+  console.error(`Error while doing my job "THE ERROR": ${err}`); // logging the uncaught error
+  process.exit(1); // exit with failure
 });
