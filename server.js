@@ -467,8 +467,8 @@ const CalculateScore = async () => {
     let score = 0;
     const userContributions = user.commit_contributions;
     for (const repository of userContributions) {
-      let commits = repository.commits;
-      for (const commit of commits) {
+      let last30DaysCommits = GetLast30DaysCommits(repository.commits);
+      for (const commit of last30DaysCommits) {
         let scoreToAdd = commit.commitCount * repository.starsCount;
         score += scoreToAdd;
       }
@@ -516,7 +516,8 @@ const CalculateCommitsCountForUsers = async () => {
   for (const user of users) {
     let userCommitsCount = 0;
     for (const repo of user.commit_contributions) {
-      for (const commit of repo.commits) {
+      const last30DaysCommits = GetLast30DaysCommits(repo.commits);
+      for (const commit of last30DaysCommits) {
         userCommitsCount += commit.commitCount;
       }
     }
