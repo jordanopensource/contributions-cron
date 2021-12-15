@@ -648,6 +648,27 @@ const UpdateUsersRanks = async () => {
   await UpdateUsersContributionsRanks();
 };
 
+const GetLast30DaysCommits = _commitsList => {
+  const currentDate = new Date();
+  const currentDateTime = currentDate.getTime();
+  const last30DaysDate = new Date(
+    currentDate.setDate(currentDate.getDate() - 30)
+  );
+  const last30DaysDateTime = last30DaysDate.getTime();
+  const lastMonthsCommits = _commitsList.filter(commit => {
+    const elementDateTime = new Date(commit.occurredAt).getTime();
+    if (
+      elementDateTime <= currentDateTime &&
+      elementDateTime > last30DaysDateTime
+    ) {
+      return true;
+    }
+    return false;
+  });
+
+  return lastMonthsCommits;
+};
+
 async function main() {
   await ConnectToDB();
   await SyncUsers();
