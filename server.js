@@ -7,6 +7,8 @@ const parseISO = require("date-fns/parseISO");
 const Organization = require("./models/organization");
 const User = require("./models/user");
 
+const { retryPromiseWithDelay } = require("./utils/retry.js");
+
 require("dotenv").config({
   path: "./config.env",
 });
@@ -247,22 +249,34 @@ const ExtractContributionsForUser = async (_user, _dateNow, _nextDay) => {
   } catch (err) {
     if (err.errors[0].type == "NOT_FOUND") {
       await User.deleteOne({ username: _user.username });
+    } else {
+      throw err;
     }
   }
 };
 
 const SaveUserContributionsToDB = async () => {
+  const retries = 2;
+  const wait = 3600000;
   let dateNow = GetDateNow();
   let nextDay = GetNextDay();
   let users = await GetUsersFromDB({}, {});
   for (const user of users) {
-    let userCommits = await ExtractContributionsForUser(user, dateNow, nextDay);
-    await User.updateOne(
-      { username: user.username },
-      { commit_contributions: userCommits }
-    );
-    if (process.env.NODE_ENV !== "production") {
-      console.log(`User: ${user.username}, Contributions Updated`);
+    try {
+      let userCommits = await retryPromiseWithDelay(
+        ExtractContributionsForUser(user, dateNow, nextDay),
+        retries,
+        wait
+      );
+      await User.updateOne(
+        { username: user.username },
+        { commit_contributions: userCommits }
+      );
+      if (process.env.NODE_ENV !== "production") {
+        console.log(`User: ${user.username}, Contributions Updated`);
+      }
+    } catch (err) {
+      throw err;
     }
   }
 };
@@ -301,15 +315,25 @@ const GetOrganizationRepoFromDB = async _organization => {
 };
 
 const SaveOrganizationsRepositoriesToDB = async () => {
+  const retries = 2;
+  const wait = 3600000;
   let organizations = await Organization.find({});
   for (const org of organizations) {
-    let orgRepos = await ExtractOrganizationRepositoriesFromGithub(org);
-    await Organization.updateOne(
-      { username: org.username },
-      { repositories: orgRepos }
-    );
-    if (process.env.NODE_ENV !== "production") {
-      console.log(`Organization: ${org.username}, Repositories Added`);
+    try {
+      let orgRepos = await retryPromiseWithDelay(
+        ExtractOrganizationRepositoriesFromGithub(org),
+        retries,
+        wait
+      );
+      await Organization.updateOne(
+        { username: org.username },
+        { repositories: orgRepos }
+      );
+      if (process.env.NODE_ENV !== "production") {
+        console.log(`Organization: ${org.username}, Repositories Added`);
+      }
+    } catch (err) {
+      throw err;
     }
   }
 };
@@ -411,6 +435,8 @@ const ExtractOrganizationRepositoriesFromGithub = async _organization => {
     } catch (err) {
       if (err.errors[0].type == "NOT_FOUND") {
         await Organization.deleteOne({ username: _organization.username });
+      } else {
+        throw err;
       }
     }
   }
