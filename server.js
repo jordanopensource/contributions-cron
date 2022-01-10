@@ -225,15 +225,16 @@ const ExtractContributionsForUser = async (_user, _dateNow, _nextDay) => {
           };
           if (!isRepoBlocked(newResult.repositoryName)) {
             let repositoryExists = commitsContributions.some(
-              x => x.url == node.repository.url
+              x => x.url === node.repository.url
             );
             if (repositoryExists) {
               let objToUpdate = commitsContributions.find(
-                element => element.url == node.repository.url
+                element => element.url === node.repository.url
               );
               let commitExists = objToUpdate.commits.some(
                 x => x.occurredAt == node.occurredAt
               );
+
               objToUpdate.starsCount = node.repository.stargazerCount;
               if (!commitExists) {
                 objToUpdate.commits = [...objToUpdate.commits, commitObj];
