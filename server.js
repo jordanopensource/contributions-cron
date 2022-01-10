@@ -235,7 +235,7 @@ const ExtractContributionsForUser = async (_user, _dateNow, _nextDay) => {
                 x => x.occurredAt == node.occurredAt
               );
 
-              objToUpdate.starsCount = node.repository.stargazerCount;
+              objToUpdate["starsCount"] = node.repository.stargazerCount;
               if (!commitExists) {
                 objToUpdate.commits = [...objToUpdate.commits, commitObj];
               }
