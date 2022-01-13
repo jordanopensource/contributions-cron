@@ -127,7 +127,7 @@ const ExtractUsersFromGithub = async () => {
   for (let index = 0; index < locationsToSearch.length; index++) {
     let result = await octokit.graphql(
       `{
-        search(query: "location:${locationsToSearch[index]} type:user sort:joined", type: USER, first: 10) {
+        search(query: "location:${locationsToSearch[index]} type:user sort:joined", type: USER, first: 20) {
         userCount
         nodes {
           ... on User {
