@@ -96,8 +96,21 @@ const SaveUsersToDB = async _usersData => {
   }
 };
 
+const toSimpleDateFormat = (date) => {
+  const year = date.getUTCFullYear();
+  const month = date.getUTCMonth() + 1;
+  const day = date.getUTCDate();
+
+  const pad2 = (num) => {
+    if (num < 10) return '0' + num;
+    else return num;
+  };
+
+  return `${year}-${pad2(month)}-${pad2(day)}`;
+};
+
 const ExtractUsersFromGithub = async () => {
-  let locationsToSearch = [
+  const locationsToSearch = [
     "Jordan",
     "Amman",
     "Aqaba",
@@ -109,40 +122,69 @@ const ExtractUsersFromGithub = async () => {
     "Maan",
     "Ajloun",
   ];
-  let extractedUsers = [];
-  for (let index = 0; index < locationsToSearch.length; index++) {
-    let result = await octokit.graphql(
-      `{
-        search(query: "location:${locationsToSearch[index]} type:user sort:joined", type: USER, first: 50) {
-        userCount
-        nodes {
-          ... on User {
-            id
-            login
-            avatarUrl
-            name
-            location
-            bio
-            url
-            company
-            isHireable
-            createdAt
+
+  const firstUserCreationYear = 2008;
+  const extractedUsers = [];
+
+  for (const location of locationsToSearch) {
+    for (let createdFromYear = firstUserCreationYear; createdFromYear <= new Date().getUTCFullYear(); createdFromYear++) {
+      const createdFrom = new Date(Date.UTC(createdFromYear));
+      const createdTo   = new Date(Date.UTC(createdFromYear + 1));
+
+      let cursor = null;
+      let hasNextPage = true;
+      while (hasNextPage) {
+        const searchQuery = `location:${location} created:${toSimpleDateFormat(createdFrom)}..${toSimpleDateFormat(createdTo)} type:user`;
+        const { search } = await octokit.graphql(
+          `
+          query findUsers($search: String!, $after: String) {
+            search(query: $search, type: USER, first: 100, after: $after) {
+              userCount
+              nodes {
+                ... on User {
+                  id
+                  login
+                  avatarUrl
+                  name
+                  location
+                  bio
+                  url
+                  company
+                  isHireable
+                  createdAt
+                }
+              }
+              pageInfo {
+                endCursor
+                hasNextPage
+              }
+            }
+          }
+          `,
+          {
+            search: searchQuery,
+            after: cursor,
+          }
+        );
+
+        if (search.userCount > 900) {
+          console.warn(`Github search query for users is reporting ${search.userCount} users.`);
+          console.warn(`However, the API does not provide more than around 1000 results.`);
+          console.warn(`It is advised to constrain the search further.`);
+        }
+
+        cursor = search.pageInfo.endCursor;
+        hasNextPage = search.pageInfo.hasNextPage;
+
+        for (const user of search.nodes) {
+          if (IsInJordan(user.location)) {
+            extractedUsers.push(user);
           }
         }
-        pageInfo {
-          endCursor
-          hasNextPage
-        }
-        }
-      }`
-    );
-    let newUsers = await result.search.nodes;
-    for (const user of newUsers) {
-      if (IsInJordan(user.location)) {
-        extractedUsers = [...extractedUsers, user];
       }
     }
   }
+
   await SaveUsersToDB(extractedUsers);
 };
 
