@@ -48,7 +48,7 @@ const isRepoBlocked = _repoName => {
   }
 };
 
-const IsInJordan = _location => {
+const isInJordan = _location => {
   const locationKeyWords = [
     "Irbid",
     "Aqaba",
@@ -103,6 +103,19 @@ const SaveUsersToDB = async _usersData => {
         );
       }
     } else {
+      const doc = await User.findOne({ github_id: user.id });
+      doc.username = user.login;
+      doc.avatar_url = user.avatarUrl;
+      doc.name = user.name;
+      doc.location = user.location;
+      doc.github_profile_url = user.url;
+
+      if (isInJordan(doc.location)) {
+        await doc.save();
+      } else {
+        await User.deleteOne({ github_id: user.id });
+      }
+
       if (process.env.NODE_ENV !== "production") {
         console.log(`User: ${user.login} Exists`);
       }
@@ -127,7 +140,7 @@ const ExtractUsersFromGithub = async () => {
   for (let index = 0; index < locationsToSearch.length; index++) {
     let result = await octokit.graphql(
       `{
-        search(query: "location:${locationsToSearch[index]} type:user sort:joined", type: USER, first: 50) {
+        search(query: "location:${locationsToSearch[index]} type:user sort:joined", type: USER, first: 2) {
         userCount
         nodes {
           ... on User {
@@ -152,7 +165,7 @@ const ExtractUsersFromGithub = async () => {
     );
     let newUsers = await result.search.nodes;
     for (const user of newUsers) {
-      if (IsInJordan(user.location)) {
+      if (isInJordan(user.location)) {
         extractedUsers = [...extractedUsers, user];
       }
     }
@@ -377,7 +390,7 @@ const ExtractOrganizationsFromGithub = async () => {
 }`);
     let newOrg = await result.search.nodes;
     for (const org of newOrg) {
-      if (IsInJordan(org.location)) {
+      if (isInJordan(org.location)) {
         extractedOrganizations = [...extractedOrganizations, org];
       }
     }
