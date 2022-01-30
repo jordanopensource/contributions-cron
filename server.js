@@ -82,7 +82,7 @@ const IsInJordan = _location => {
 
 const SaveUsersToDB = async _usersData => {
   for (const user of _usersData) {
-    let userExists = await User.exists({ username: user.login });
+    let userExists = await User.exists({ github_id: user.id });
     if (!userExists) {
       let newUser = new User({
         username: user.login,
@@ -127,7 +127,7 @@ const ExtractUsersFromGithub = async () => {
   for (let index = 0; index < locationsToSearch.length; index++) {
     let result = await octokit.graphql(
       `{
-        search(query: "location:${locationsToSearch[index]} type:user sort:joined", type: USER, first: 20) {
+        search(query: "location:${locationsToSearch[index]} type:user sort:joined", type: USER, first: 50) {
         userCount
         nodes {
           ... on User {
