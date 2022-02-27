@@ -306,7 +306,7 @@ const SaveOrganizationsToDB = async _organizations => {
         name: org.name,
         location: org.location,
         github_profile_url: org.url,
-        org_createdAt: org.createdAt,
+        organization_createdAt: org.createdAt,
       });
       await newOrg.save();
       if (process.env.NODE_ENV !== "production") {
@@ -456,12 +456,41 @@ const ExtractOrganizationRepositoriesFromGithub = async _organization => {
   }
 };
 
+const UpdateOrganizationsInfo = async () => {
+  const orgs = await Organization.find({});
+  for (const org of orgs) {
+    const orgCreatedAt = await ExtractOrganizationCreateDate(org.username);
+    if (orgCreatedAt) {
+      await Organization.updateOne(
+        { username: org.username },
+        { organization_createdAt: orgCreatedAt }
+      );
+    }
+  }
+};
+
+const ExtractOrganizationCreateDate = async _orgUsername => {
+  try {
+    let response = await octokit.graphql(`{
+        organization(login: "${_orgUsername}") {
+          createdAt
+        }
+  }`);
+    return response.organization.createdAt;
+  } catch (err) {
+    if ((err.type = "NOT_FOUND")) {
+      await Organization.deleteOne({ username: _orgUsername });
+    }
+  }
+};
+
 const SyncOrganizations = async () => {
   console.log(
     "Database Started Syncing Organizations\n-------------------------"
   );
   await ExtractOrganizationsFromGithub();
   await SaveOrganizationsRepositoriesToDB();
+  await UpdateOrganizationsInfo();
   console.log(
     "Database Finished Syncing Organizations\n-------------------------"
   );
