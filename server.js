@@ -484,13 +484,51 @@ const ExtractOrganizationCreateDate = async _orgUsername => {
   }
 };
 
+const ExtractOrganizationMembers = async _orgUsername => {
+  try {
+    let response = await octokit.graphql(`{
+        organization(login: "${_orgUsername}") {
+          membersWithRole(first: 100) {
+            nodes {
+              id
+              login
+              name
+              avatarUrl
+              url
+            }
+          }
+        }
+  }`);
+    let members = response.organization.membersWithRole.nodes;
+    return members;
+  } catch (err) {
+    if (err.type === "NOT_FOUND") {
+      await Organization.deleteOne({ username: _orgUsername });
+    }
+  }
+};
+
+const UpdateOrganizationsMembers = async () => {
+  const orgs = await Organization.find({});
+  for (const org of orgs) {
+    const members = await ExtractOrganizationMembers(org.username);
+    if (members) {
+      await Organization.updateOne(
+        { username: org.username },
+        { members: members }
+      );
+    }
+  }
+};
+
 const SyncOrganizations = async () => {
   console.log(
     "Database Started Syncing Organizations\n-------------------------"
   );
   await ExtractOrganizationsFromGithub();
   await SaveOrganizationsRepositoriesToDB();
-  await UpdateOrganizationsInfo();
+  // await UpdateOrganizationsInfo();
+  await UpdateOrganizationsMembers();
   console.log(
     "Database Finished Syncing Organizations\n-------------------------"
   );
