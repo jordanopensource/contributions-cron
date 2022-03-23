@@ -762,12 +762,12 @@ const GetLast30DaysCommits = _commitsList => {
 
 async function main() {
   await ConnectToDB();
-  // await SyncUsers();
+  await SyncUsers();
   await SyncOrganizations();
-  // await CalculateScore();
-  // await CalculateCommitsCountForUsers();
-  // await CalculateRepositoriesNumberForOrgs();
-  // await UpdateUsersRanks();
+  await CalculateScore();
+  await CalculateCommitsCountForUsers();
+  await CalculateRepositoriesNumberForOrgs();
+  await UpdateUsersRanks();
 
   await mongoose.connection.close();
   console.log(
