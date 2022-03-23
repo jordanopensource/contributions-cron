@@ -40,6 +40,12 @@ const GetNextDay = () => {
   return nextDay;
 };
 
+const GetLastRegisteredUserDate = async () => {
+  let lastUser = await User.findOne({}).sort({ user_createdAt: -1 });
+  const date = new Date(lastUser.user_createdAt);
+  return date.toISOString().split("T")[0];
+};
+
 const blockedRepos = ["first-contributions"];
 
 const isRepoBlocked = _repoName => {
@@ -136,12 +142,12 @@ const ExtractUsersFromGithub = async () => {
     "Maan",
     "Ajloun",
   ];
+  const startDate = await GetLastRegisteredUserDate();
   let extractedUsers = [];
   for (let index = 0; index < locationsToSearch.length; index++) {
     let result = await octokit.graphql(
       `{
-        search(query: "location:${locationsToSearch[index]} type:user sort:joined", type: USER, first: 2) {
-        userCount
+        search(query: "location:${locationsToSearch[index]} type:user created:>=${startDate}", type: USER, first: 100) {
         nodes {
           ... on User {
             id
