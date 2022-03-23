@@ -199,7 +199,11 @@ const GetUserCommitContributionFromDB = async _user => {
   return userCommits;
 };
 
-const ExtractContributionsForUser = async (_user, _dateNow, _nextDay) => {
+const ExtractContributionsForUser = async (
+  _user,
+  _firstDayOfTheYear,
+  _dateNow
+) => {
   try {
     let commitsContributions = await GetUserCommitContributionFromDB(
       _user.username
@@ -213,7 +217,7 @@ const ExtractContributionsForUser = async (_user, _dateNow, _nextDay) => {
     };
     let response = await octokit.graphql(`{
      user(login: "${_user.username}") {
-        contributionsCollection(from: "${_dateNow}", to: "${_nextDay}") {
+        contributionsCollection(from: "${_firstDayOfTheYear}", to: "${_dateNow}") {
         commitContributionsByRepository {
         contributions(first: 100) {
             nodes {
@@ -286,13 +290,13 @@ const ExtractContributionsForUser = async (_user, _dateNow, _nextDay) => {
 const SaveUserContributionsToDB = async () => {
   const retries = 2;
   const wait = 3600000;
-  let dateNow = GetDateNow();
-  let nextDay = GetNextDay();
+  let firstDayOfTheYear = `${new Date().getFullYear()}-01-01T00:00:00.000Z`;
+  let dateNow = new Date().toISOString();
   let users = await GetUsersFromDB({}, {});
   for (const user of users) {
     try {
       let userCommits = await retryPromiseWithDelay(
-        ExtractContributionsForUser(user, dateNow, nextDay),
+        ExtractContributionsForUser(user, firstDayOfTheYear, dateNow),
         retries,
         wait
       );
