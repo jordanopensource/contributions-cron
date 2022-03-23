@@ -26,6 +26,14 @@ const ConnectToDB = async () => {
     .then(() => console.log("Connected to DB"));
 };
 
+const GetLastRegisteredOrgDate = async () => {
+  let lastOrganization = await Organization.findOne({}).sort({
+    organization_createdAt: -1,
+  });
+  const date = new Date(lastOrganization.organization_createdAt);
+  return date.toISOString().split("T")[0];
+};
+
 const GetDateNow = () => {
   let date = Date.now();
   date = formatISO(date, { representation: "date" });
@@ -371,11 +379,12 @@ const ExtractOrganizationsFromGithub = async () => {
     "Maan",
     "Ajloun",
   ];
+  const startDate = await GetLastRegisteredOrgDate();
   let extractedOrganizations = [];
   for (let index = 0; index < locationsToSearch.length; index++) {
     let result = await octokit.graphql(`
         {
-          search(query: "location:${locationsToSearch[index]} type:org sort:joined", type: USER, first: 10) {
+          search(query: "location:${locationsToSearch[index]} type:org created:>=${startDate}", type: USER, first: 100) {
           userCount
           nodes {
           ... on Organization {
