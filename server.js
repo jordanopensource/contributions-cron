@@ -18,12 +18,20 @@ const octokit = new Octokit({
 });
 
 const ConnectToDB = async () => {
-  await mongoose
-    .connect(process.env.DB_URL, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    })
-    .then(() => console.log("Connected to DB"));
+  let DB_URL = 'mongodb://'+process.env.DATABASE_HOST+":"+process.env.DATABASE_PORT+'/'+process.env.DATABASE_NAME;
+  if(process.env.NODE_ENV !== 'development'){
+    // DB_URL
+    // mongodb://username:password@host:port/database
+    DB_URL = 'mongodb+srv://'+process.env.DATABASE_USER+':'+process.env.DATABASE_PASSWORD+'@'+process.env.DATABASE_HOST+'/'+process.env.DATABASE_NAME+'?authSource=admin&tls='+process.env.TLS_ENABLED+'&tlsCAFile='+process.env.CA_PATH+'';
+  }
+  await mongoose.connect(DB_URL, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  });
+  console.info("Connected to the database");
+  console.info(
+    `Database Host: ${mongoose.connection.host}\nDatabase Port: ${mongoose.connection.port}\nDatabase Name: ${mongoose.connection.name}`
+  );
 };
 
 const GetLastRegisteredOrgDate = async () => {
