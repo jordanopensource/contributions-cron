@@ -14,7 +14,7 @@ require("dotenv").config({
 });
 
 const octokit = new Octokit({
-  auth: process.env.GITHUB_API_KEY,
+  auth: process.env.GITHUB_ACCESS_TOKEN,
 });
 
 const ConnectToDB = async () => {
