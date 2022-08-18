@@ -1,0 +1,30 @@
+services:
+  app:
+    build:
+      context: .
+    image: contributions-cron:latest
+    container_name: contributions-cron
+    restart: unless-stopped
+    environment:
+      DB_URL: mongodb://mongodb:27017/top-contributors
+      PORT: 8080
+      GITHUB_ACCESS_TOKEN: << INSERT GH API KEY HERE >>
+    networks:
+      - contributions-network
+    ports:
+      - "8080:8080"
+
+  mongodb:
+    image: mongo
+    container_name: mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_DATABASE: top-contributors
+    networks:
+      - contributions-network
+    ports:
+      - "27017:27017"
+
+networks:
+  contributions-network:
+    driver: bridge
