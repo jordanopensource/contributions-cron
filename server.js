@@ -18,11 +18,30 @@ const octokit = new Octokit({
 });
 
 const ConnectToDB = async () => {
-  let DB_URL = 'mongodb://'+process.env.DATABASE_HOST+":"+process.env.DATABASE_PORT+'/'+process.env.DATABASE_NAME;
-  if(process.env.NODE_ENV !== 'development'){
+  let DB_URL =
+    "mongodb://" +
+    process.env.DATABASE_HOST +
+    ":" +
+    process.env.DATABASE_PORT +
+    "/" +
+    process.env.DATABASE_NAME;
+  if (process.env.NODE_ENV !== "development") {
     // DB_URL
     // mongodb://username:password@host:port/database
-    DB_URL = 'mongodb+srv://'+process.env.DATABASE_USER+':'+process.env.DATABASE_PASSWORD+'@'+process.env.DATABASE_HOST+'/'+process.env.DATABASE_NAME+'?authSource=admin&tls='+process.env.TLS_ENABLED+'&tlsCAFile='+process.env.CA_PATH+'';
+    DB_URL =
+      "mongodb+srv://" +
+      process.env.DATABASE_USER +
+      ":" +
+      process.env.DATABASE_PASSWORD +
+      "@" +
+      process.env.DATABASE_HOST +
+      "/" +
+      process.env.DATABASE_NAME +
+      "?authSource=admin&tls=" +
+      process.env.TLS_ENABLED +
+      "&tlsCAFile=" +
+      process.env.CA_PATH +
+      "";
   }
   await mongoose.connect(DB_URL, {
     useNewUrlParser: true,
@@ -565,6 +584,7 @@ const SyncUsers = async () => {
   console.log("Database Started Syncing Users\n-------------------------");
   await ExtractUsersFromGithub();
   await SaveUserContributionsToDB();
+  await CalculateUserTotalCommitsByRepo();
   console.log("Database Finished Syncing Users\n-------------------------");
 };
 
@@ -776,6 +796,40 @@ const GetLast30DaysCommits = _commitsList => {
   });
 
   return lastMonthsCommits;
+};
+
+const CalculateUserTotalCommitsByRepo = async () => {
+  let users = await GetUsersFromDB({}, {});
+  for (const user of users) {
+    if (process.env.NODE_ENV === "development")
+      console.log(`Started updating user: ${user.username}`);
+    const userCommits = await GetUserCommitContributionFromDB(user.username);
+    const updatedCommitContributions = [];
+    for (const repo of userCommits) {
+      repoTotalCommits = 0;
+      for (const commit of repo.commits) {
+        repoTotalCommits += commit.commitCount;
+      }
+      const newRepoObject = {
+        ...repo,
+        totalCommits: repoTotalCommits,
+      };
+      updatedCommitContributions.push(newRepoObject);
+    }
+    // Sort the repos by total commits
+    const sortedContributions = updatedCommitContributions
+      .slice()
+      .sort((a, b) => {
+        return b.totalCommits - a.totalCommits;
+      });
+
+    await User.updateOne(
+      { username: user.username },
+      { commit_contributions: sortedContributions }
+    );
+    if (process.env.NODE_ENV === "development")
+      console.log(`Finished updating user: ${user.username}`);
+  }
 };
 
 async function main() {
