@@ -3,6 +3,7 @@ const { Octokit } = require("octokit");
 const formatISO = require("date-fns/formatISO");
 const addTime = require("date-fns/add");
 const parseISO = require("date-fns/parseISO");
+const axios = require("axios");
 
 const Organization = require("./models/organization");
 const User = require("./models/user");
@@ -161,6 +162,36 @@ const SaveUsersToDB = async _usersData => {
         console.log(`User: ${user.login} Exists`);
       }
     }
+  }
+};
+
+const AddNewMembers = async () => {
+  try {
+    const response = await axios.get(`${process.env.API_URL}/v1/usersToAdd`);
+    const usersToAdd = response.data.data;
+    let newUsers = [];
+    for (const user of usersToAdd) {
+      let result = await octokit.graphql(
+        `{
+          user(login: "${user}") {
+            id
+            login
+            avatarUrl
+            name
+            location
+            bio
+            url
+            company
+            isHireable
+            createdAt
+          }
+        }`
+      );
+      newUsers.push(result.user);
+    }
+    await SaveUsersToDB(newUsers);
+  } catch (err) {
+    if (err.errors[0].type == "NOT_FOUND") console.log(err.errors[0].message);
   }
 };
 
@@ -583,6 +614,9 @@ const SyncOrganizations = async () => {
 const SyncUsers = async () => {
   console.log("Database Started Syncing Users\n-------------------------");
   await ExtractUsersFromGithub();
+  console.log("Started adding new members");
+  await AddNewMembers();
+  console.log("Finished adding new members");
   await SaveUserContributionsToDB();
   await CalculateUserTotalCommitsByRepo();
   console.log("Database Finished Syncing Users\n-------------------------");
