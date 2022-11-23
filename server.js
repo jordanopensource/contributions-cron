@@ -3,6 +3,7 @@ const { Octokit } = require("octokit");
 const formatISO = require("date-fns/formatISO");
 const addTime = require("date-fns/add");
 const parseISO = require("date-fns/parseISO");
+const axios = require("axios");
 
 const Organization = require("./models/organization");
 const User = require("./models/user");
@@ -18,11 +19,30 @@ const octokit = new Octokit({
 });
 
 const ConnectToDB = async () => {
-  let DB_URL = 'mongodb://'+process.env.DATABASE_HOST+":"+process.env.DATABASE_PORT+'/'+process.env.DATABASE_NAME;
-  if(process.env.NODE_ENV !== 'development'){
+  let DB_URL =
+    "mongodb://" +
+    process.env.DATABASE_HOST +
+    ":" +
+    process.env.DATABASE_PORT +
+    "/" +
+    process.env.DATABASE_NAME;
+  if (process.env.NODE_ENV !== "development") {
     // DB_URL
     // mongodb://username:password@host:port/database
-    DB_URL = 'mongodb+srv://'+process.env.DATABASE_USER+':'+process.env.DATABASE_PASSWORD+'@'+process.env.DATABASE_HOST+'/'+process.env.DATABASE_NAME+'?authSource=admin&tls='+process.env.TLS_ENABLED+'&tlsCAFile='+process.env.CA_PATH+'';
+    DB_URL =
+      "mongodb+srv://" +
+      process.env.DATABASE_USER +
+      ":" +
+      process.env.DATABASE_PASSWORD +
+      "@" +
+      process.env.DATABASE_HOST +
+      "/" +
+      process.env.DATABASE_NAME +
+      "?authSource=admin&tls=" +
+      process.env.TLS_ENABLED +
+      "&tlsCAFile=" +
+      process.env.CA_PATH +
+      "";
   }
   await mongoose.connect(DB_URL, {
     useNewUrlParser: true,
@@ -142,6 +162,36 @@ const SaveUsersToDB = async _usersData => {
         console.log(`User: ${user.login} Exists`);
       }
     }
+  }
+};
+
+const AddNewMembers = async () => {
+  try {
+    const response = await axios.get(`${process.env.API_URL}/v1/usersToAdd`);
+    const usersToAdd = response.data.data;
+    let newUsers = [];
+    for (const user of usersToAdd) {
+      let result = await octokit.graphql(
+        `{
+          user(login: "${user}") {
+            id
+            login
+            avatarUrl
+            name
+            location
+            bio
+            url
+            company
+            isHireable
+            createdAt
+          }
+        }`
+      );
+      newUsers.push(result.user);
+    }
+    await SaveUsersToDB(newUsers);
+  } catch (err) {
+    if (err.errors[0].type == "NOT_FOUND") console.log(err.errors[0].message);
   }
 };
 
@@ -564,7 +614,11 @@ const SyncOrganizations = async () => {
 const SyncUsers = async () => {
   console.log("Database Started Syncing Users\n-------------------------");
   await ExtractUsersFromGithub();
+  console.log("Started adding new members");
+  await AddNewMembers();
+  console.log("Finished adding new members");
   await SaveUserContributionsToDB();
+  await CalculateUserTotalCommitsByRepo();
   console.log("Database Finished Syncing Users\n-------------------------");
 };
 
@@ -776,6 +830,40 @@ const GetLast30DaysCommits = _commitsList => {
   });
 
   return lastMonthsCommits;
+};
+
+const CalculateUserTotalCommitsByRepo = async () => {
+  let users = await GetUsersFromDB({}, {});
+  for (const user of users) {
+    if (process.env.NODE_ENV === "development")
+      console.log(`Started updating user: ${user.username}`);
+    const userCommits = await GetUserCommitContributionFromDB(user.username);
+    const updatedCommitContributions = [];
+    for (const repo of userCommits) {
+      repoTotalCommits = 0;
+      for (const commit of repo.commits) {
+        repoTotalCommits += commit.commitCount;
+      }
+      const newRepoObject = {
+        ...repo,
+        totalCommits: repoTotalCommits,
+      };
+      updatedCommitContributions.push(newRepoObject);
+    }
+    // Sort the repos by total commits
+    const sortedContributions = updatedCommitContributions
+      .slice()
+      .sort((a, b) => {
+        return b.totalCommits - a.totalCommits;
+      });
+
+    await User.updateOne(
+      { username: user.username },
+      { commit_contributions: sortedContributions }
+    );
+    if (process.env.NODE_ENV === "development")
+      console.log(`Finished updating user: ${user.username}`);
+  }
 };
 
 async function main() {
