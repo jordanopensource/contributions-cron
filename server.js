@@ -1,13 +1,58 @@
 const mongoose = require("mongoose");
 const { Octokit } = require("octokit");
 const formatISO = require("date-fns/formatISO");
+const fs = require("fs");
 const addTime = require("date-fns/add");
 const parseISO = require("date-fns/parseISO");
+const axios = require("axios");
 
 const Organization = require("./models/organization");
 const User = require("./models/user");
 
 const { retryPromiseWithDelay } = require("./utils/retry.js");
+
+const getBlockedRepos = () => {
+  const blockedRepos = [];
+  // read the file as a utf-8 encoded string
+  fs.readFile("./blockedRepos.txt", "utf-8", (err, data) => {
+    if (err) {
+      // handle the error
+      console.error(err);
+      return;
+    }
+
+    // split the data into an array of names
+    const repoNames = data.split("\n");
+
+    repoNames.forEach(repoName => {
+      blockedRepos.push(repoName);
+    });
+  });
+  return blockedRepos;
+};
+
+const getBlockedUsers = () => {
+  const blockedUsers = [];
+  // read the file as a utf-8 encoded string
+  fs.readFile("./blockedUsers.txt", "utf-8", (err, data) => {
+    if (err) {
+      // handle the error
+      console.error(err);
+      return;
+    }
+
+    // split the data into an array of names
+    const usernames = data.split("\n");
+
+    usernames.forEach(username => {
+      blockedUsers.push(username);
+    });
+  });
+  return blockedUsers;
+};
+
+const blockedRepos = getBlockedRepos();
+const blockedUsers = getBlockedUsers();
 
 require("dotenv").config({
   path: "./config.env",
@@ -18,11 +63,30 @@ const octokit = new Octokit({
 });
 
 const ConnectToDB = async () => {
-  let DB_URL = 'mongodb://'+process.env.DATABASE_HOST+":"+process.env.DATABASE_PORT+'/'+process.env.DATABASE_NAME;
-  if(process.env.NODE_ENV !== 'development'){
+  let DB_URL =
+    "mongodb://" +
+    process.env.DATABASE_HOST +
+    ":" +
+    process.env.DATABASE_PORT +
+    "/" +
+    process.env.DATABASE_NAME;
+  if (process.env.NODE_ENV !== "development") {
     // DB_URL
     // mongodb://username:password@host:port/database
-    DB_URL = 'mongodb+srv://'+process.env.DATABASE_USER+':'+process.env.DATABASE_PASSWORD+'@'+process.env.DATABASE_HOST+'/'+process.env.DATABASE_NAME+'?authSource=admin&tls='+process.env.TLS_ENABLED+'&tlsCAFile='+process.env.CA_PATH+'';
+    DB_URL =
+      "mongodb+srv://" +
+      process.env.DATABASE_USER +
+      ":" +
+      process.env.DATABASE_PASSWORD +
+      "@" +
+      process.env.DATABASE_HOST +
+      "/" +
+      process.env.DATABASE_NAME +
+      "?authSource=admin&tls=" +
+      process.env.TLS_ENABLED +
+      "&tlsCAFile=" +
+      process.env.CA_PATH +
+      "";
   }
   await mongoose.connect(DB_URL, {
     useNewUrlParser: true,
@@ -62,15 +126,22 @@ const GetLastRegisteredUserDate = async () => {
   return date.toISOString().split("T")[0];
 };
 
-const blockedRepos = ["first-contributions"];
-
 const isRepoBlocked = _repoName => {
   for (const repo of blockedRepos) {
     return _repoName === repo;
   }
 };
 
+const isUserBlocked = _username => {
+  for (const user of blockedUsers) {
+    return _username === user;
+  }
+};
+
 const isInJordan = _location => {
+  if (!_location) {
+    return false;
+  }
   const locationKeyWords = [
     "Irbid",
     "Aqaba",
@@ -104,44 +175,79 @@ const isInJordan = _location => {
 
 const SaveUsersToDB = async _usersData => {
   for (const user of _usersData) {
-    let userExists = await User.exists({ github_id: user.id });
-    if (!userExists) {
-      let newUser = new User({
-        username: user.login,
-        github_id: user.id,
-        avatar_url: user.avatarUrl,
-        name: user.name,
-        location: user.location,
-        bio: user.bio,
-        company: user.company,
-        isHireable: user.isHireable,
-        github_profile_url: user.url,
-        user_createdAt: user.createdAt,
-      });
-      await newUser.save();
-      if (process.env.NODE_ENV !== "production") {
-        console.log(
-          `User: ${newUser.username} and the location is ${newUser.location} was saved to DB`
-        );
-      }
-    } else {
-      const doc = await User.findOne({ github_id: user.id });
-      doc.username = user.login;
-      doc.avatar_url = user.avatarUrl;
-      doc.name = user.name;
-      doc.location = user.location;
-      doc.github_profile_url = user.url;
-
-      if (isInJordan(doc.location)) {
-        await doc.save();
+    if (!isUserBlocked(user.login)) {
+      let userExists = await User.exists({ github_id: user.id });
+      if (!userExists) {
+        let newUser = new User({
+          username: user.login,
+          github_id: user.id,
+          avatar_url: user.avatarUrl,
+          name: user.name,
+          location: user.location,
+          bio: user.bio,
+          company: user.company,
+          isHireable: user.isHireable,
+          github_profile_url: user.url,
+          user_createdAt: user.createdAt,
+        });
+        await newUser.save();
+        if (process.env.NODE_ENV !== "production") {
+          console.log(
+            `User: ${newUser.username} and the location is ${newUser.location} was saved to DB`
+          );
+        }
       } else {
-        await User.deleteOne({ github_id: user.id });
-      }
-
-      if (process.env.NODE_ENV !== "production") {
-        console.log(`User: ${user.login} Exists`);
+        if (isInJordan(user.location)) {
+          await User.updateOne(
+            { github_id: user.id },
+            {
+              avatar_url: user.avatarUrl,
+              name: user.name,
+              location: user.location,
+              github_profile_url: user.url,
+              bio: user.bio,
+              company: user.company,
+            }
+          );
+        } else {
+          await User.deleteOne({ github_id: user.id });
+          console.log(
+            `User ${user.name} has been removed due to the location not being jordan`
+          );
+        }
       }
     }
+  }
+};
+
+const AddNewMembers = async () => {
+  try {
+    const response = await axios.get(`${process.env.API_URL}/v1/usersToAdd`);
+    const usersToAdd = response.data.data;
+
+    let newUsers = [];
+    for (const user of usersToAdd) {
+      let result = await octokit.graphql(
+        `{
+          user(login: "${user}") {
+            id
+            login
+            avatarUrl
+            name
+            location
+            bio
+            url
+            company
+            isHireable
+            createdAt
+          }
+        }`
+      );
+      newUsers.push(result.user);
+    }
+    await SaveUsersToDB(newUsers);
+  } catch (err) {
+    console.log(`No new members to add`);
   }
 };
 
@@ -158,12 +264,16 @@ const ExtractUsersFromGithub = async () => {
     "Maan",
     "Ajloun",
   ];
-  const startDate = await GetLastRegisteredUserDate();
+
   let extractedUsers = [];
   for (let index = 0; index < locationsToSearch.length; index++) {
-    let result = await octokit.graphql(
-      `{
-        search(query: "location:${locationsToSearch[index]} type:user created:>=${startDate}", type: USER, first: 100) {
+    let endCursor = null;
+    let hasNextPage = true;
+    while (hasNextPage) {
+      let pageCursor = endCursor === null ? `${endCursor}` : `"${endCursor}"`;
+      let result = await octokit.graphql(
+        `{
+        search(query: "location:${locationsToSearch[index]} type:user", type: USER, first: 100, after: ${pageCursor}) {
         nodes {
           ... on User {
             id
@@ -184,12 +294,16 @@ const ExtractUsersFromGithub = async () => {
         }
         }
       }`
-    );
-    let newUsers = await result.search.nodes;
-    for (const user of newUsers) {
-      if (isInJordan(user.location)) {
-        extractedUsers = [...extractedUsers, user];
+      );
+      let newUsers = await result.search.nodes;
+
+      for (const user of newUsers) {
+        if (isInJordan(user.location)) {
+          extractedUsers = [...extractedUsers, user];
+        }
       }
+      hasNextPage = await result.search.pageInfo.hasNextPage;
+      endCursor = await result.search.pageInfo.endCursor;
     }
   }
   await SaveUsersToDB(extractedUsers);
@@ -201,6 +315,33 @@ const GetUsersFromDB = async (_filter = {}, _sort = {}) => {
   return documents;
 };
 
+const CleanDatabase = async () => {
+  const users = await GetUsersFromDB();
+  for (const user of users) {
+    let result = await octokit.graphql(
+      `{
+        user(login: "${user.username}") {
+          location
+        }
+      }`
+    );
+    const userLocation = await result.user.location;
+
+    if (!isInJordan(userLocation)) {
+      await User.deleteOne({ github_id: user.github_id });
+      console.log(
+        `User ${user.username} has been removed due to the location not being jordan`
+      );
+    }
+    if (isUserBlocked(user.username)) {
+      await User.deleteOne({ github_id: user.github_id });
+      console.log(
+        `User ${user.username} has been removed because i found the user in the blocked list`
+      );
+    }
+  }
+};
+
 const GetUserCommitContributionFromDB = async _user => {
   let user = await User.findOne({ username: _user });
   let userCommits = user.commit_contributions;
@@ -209,7 +350,7 @@ const GetUserCommitContributionFromDB = async _user => {
 
 const ExtractContributionsForUser = async (
   _user,
-  _firstDayOfTheYear,
+  _firstDayOfLastYear,
   _dateNow
 ) => {
   try {
@@ -225,7 +366,7 @@ const ExtractContributionsForUser = async (
     };
     let response = await octokit.graphql(`{
      user(login: "${_user.username}") {
-        contributionsCollection(from: "${_firstDayOfTheYear}", to: "${_dateNow}") {
+        contributionsCollection(from: "${_firstDayOfLastYear}", to: "${_dateNow}") {
         commitContributionsByRepository {
         contributions(first: 100) {
             nodes {
@@ -298,13 +439,16 @@ const ExtractContributionsForUser = async (
 const SaveUserContributionsToDB = async () => {
   const retries = 2;
   const wait = 3600000;
-  let firstDayOfTheYear = `${new Date().getFullYear()}-01-01T00:00:00.000Z`;
+  let firstDayOfLastYear = `${
+    new Date().getFullYear() - 1
+  }-01-01T00:00:00.000Z`;
+  console.log(firstDayOfLastYear);
   let dateNow = new Date().toISOString();
   let users = await GetUsersFromDB({}, {});
   for (const user of users) {
     try {
       let userCommits = await retryPromiseWithDelay(
-        ExtractContributionsForUser(user, firstDayOfTheYear, dateNow),
+        ExtractContributionsForUser(user, firstDayOfLastYear, dateNow),
         retries,
         wait
       );
@@ -563,9 +707,13 @@ const SyncOrganizations = async () => {
 
 const SyncUsers = async () => {
   console.log("Database Started Syncing Users\n-------------------------");
-  await ExtractUsersFromGithub();
+  // await ExtractUsersFromGithub();
+  // console.log("Started adding new members");
+  // await AddNewMembers();
+  // console.log("Finished adding new members");
   await SaveUserContributionsToDB();
-  console.log("Database Finished Syncing Users\n-------------------------");
+  // await CalculateUserTotalCommitsByRepo();
+  // console.log("Database Finished Syncing Users\n-------------------------");
 };
 
 const CalculateScore = async () => {
@@ -778,6 +926,40 @@ const GetLast30DaysCommits = _commitsList => {
   return lastMonthsCommits;
 };
 
+const CalculateUserTotalCommitsByRepo = async () => {
+  let users = await GetUsersFromDB({}, {});
+  for (const user of users) {
+    if (process.env.NODE_ENV === "development")
+      console.log(`Started updating user: ${user.username}`);
+    const userCommits = await GetUserCommitContributionFromDB(user.username);
+    const updatedCommitContributions = [];
+    for (const repo of userCommits) {
+      repoTotalCommits = 0;
+      for (const commit of repo.commits) {
+        repoTotalCommits += commit.commitCount;
+      }
+      const newRepoObject = {
+        ...repo,
+        totalCommits: repoTotalCommits,
+      };
+      updatedCommitContributions.push(newRepoObject);
+    }
+    // Sort the repos by total commits
+    const sortedContributions = updatedCommitContributions
+      .slice()
+      .sort((a, b) => {
+        return b.totalCommits - a.totalCommits;
+      });
+
+    await User.updateOne(
+      { username: user.username },
+      { commit_contributions: sortedContributions }
+    );
+    if (process.env.NODE_ENV === "development")
+      console.log(`Finished updating user: ${user.username}`);
+  }
+};
+
 async function main() {
   await ConnectToDB();
   await SyncUsers();
@@ -786,6 +968,7 @@ async function main() {
   await CalculateCommitsCountForUsers();
   await CalculateRepositoriesNumberForOrgs();
   await UpdateUsersRanks();
+  await CleanDatabase();
 
   await mongoose.connection.close();
   console.log(
