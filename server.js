@@ -8,6 +8,7 @@ const axios = require("axios");
 
 const Organization = require("./models/organization");
 const User = require("./models/user");
+const Stat = require("./models/stat");
 
 const { retryPromiseWithDelay } = require("./utils/retry.js");
 
@@ -960,6 +961,30 @@ const CalculateUserTotalCommitsByRepo = async () => {
   }
 };
 
+const CreateStats = async () => {
+  let commitsCount = 0;
+  let commitsList = [];
+  const usersCount = await User.count({});
+  const orgsCount = await Organization.count({});
+  const users = await User.find({}, "commit_contributions");
+  for (const user of users) {
+    for (const repo of user.commit_contributions) {
+      for (const commit of repo.commits) {
+        commitsList.push(commit);
+      }
+    }
+  }
+  for (const contribution of commitsList) {
+    commitsCount += contribution.commitCount;
+  }
+  let newStats = new Stat({
+    total_users: usersCount,
+    total_orgs: orgsCount,
+    total_commits: commitsCount,
+  });
+  await newStats.save();
+};
+
 async function main() {
   await ConnectToDB();
   await SyncUsers();
@@ -969,6 +994,7 @@ async function main() {
   await CalculateRepositoriesNumberForOrgs();
   await UpdateUsersRanks();
   await CleanDatabase();
+  await CreateStats();
 
   await mongoose.connection.close();
   console.log(
