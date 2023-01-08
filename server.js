@@ -708,13 +708,13 @@ const SyncOrganizations = async () => {
 
 const SyncUsers = async () => {
   console.log("Database Started Syncing Users\n-------------------------");
-  // await ExtractUsersFromGithub();
-  // console.log("Started adding new members");
-  // await AddNewMembers();
-  // console.log("Finished adding new members");
+  await ExtractUsersFromGithub();
+  console.log("Started adding new members");
+  await AddNewMembers();
+  console.log("Finished adding new members");
   await SaveUserContributionsToDB();
-  // await CalculateUserTotalCommitsByRepo();
-  // console.log("Database Finished Syncing Users\n-------------------------");
+  await CalculateUserTotalCommitsByRepo();
+  console.log("Database Finished Syncing Users\n-------------------------");
 };
 
 const CalculateScore = async () => {
