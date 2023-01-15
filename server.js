@@ -177,7 +177,7 @@ const isInJordan = _location => {
 const SaveUsersToDB = async _usersData => {
   for (const user of _usersData) {
     if (!isUserBlocked(user.login)) {
-      let userExists = await User.exists({ github_id: user.id });
+      let userExists = await User.exists({ username: user.login });
       if (!userExists) {
         let newUser = new User({
           username: user.login,
@@ -200,8 +200,9 @@ const SaveUsersToDB = async _usersData => {
       } else {
         if (isInJordan(user.location)) {
           await User.updateOne(
-            { github_id: user.id },
+            { username: user.login },
             {
+              github_id: user.id,
               avatar_url: user.avatarUrl,
               name: user.name,
               location: user.location,
@@ -211,7 +212,7 @@ const SaveUsersToDB = async _usersData => {
             }
           );
         } else {
-          await User.deleteOne({ github_id: user.id });
+          await User.deleteOne({ username: user.login });
           console.log(
             `User ${user.name} has been removed due to the location not being jordan`
           );
@@ -329,13 +330,13 @@ const CleanDatabase = async () => {
     const userLocation = await result.user.location;
 
     if (!isInJordan(userLocation)) {
-      await User.deleteOne({ github_id: user.github_id });
+      await User.deleteOne({ username: user.login });
       console.log(
         `User ${user.username} has been removed due to the location not being jordan`
       );
     }
     if (isUserBlocked(user.username)) {
-      await User.deleteOne({ github_id: user.github_id });
+      await User.deleteOne({ username: user.login });
       console.log(
         `User ${user.username} has been removed because i found the user in the blocked list`
       );
