@@ -181,7 +181,6 @@ const SaveUsersToDB = async _usersData => {
       if (!userExists) {
         let newUser = new User({
           username: user.login,
-          github_id: user.id,
           avatar_url: user.avatarUrl,
           name: user.name,
           location: user.location,
@@ -202,7 +201,6 @@ const SaveUsersToDB = async _usersData => {
           await User.updateOne(
             { username: user.login },
             {
-              github_id: user.id,
               avatar_url: user.avatarUrl,
               name: user.name,
               location: user.location,
@@ -473,7 +471,6 @@ const SaveOrganizationsToDB = async _organizations => {
     if (!orgExists) {
       let newOrg = new Organization({
         username: org.login,
-        github_id: org.id,
         avatar_url: org.avatarUrl,
         name: org.name,
         location: org.location,
