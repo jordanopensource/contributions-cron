@@ -276,7 +276,6 @@ const ExtractUsersFromGithub = async () => {
         search(query: "location:${locationsToSearch[index]} type:user", type: USER, first: 100, after: ${pageCursor}) {
         nodes {
           ... on User {
-            id
             login
             avatarUrl
             name

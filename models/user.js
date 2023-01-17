@@ -15,11 +15,6 @@ const userSchema = new Schema(
       required: true,
       unique: true,
     },
-    github_id: {
-      type: String,
-      required: true,
-      unique: true,
-    },
     avatar_url: {
       type: String,
       required: true,
