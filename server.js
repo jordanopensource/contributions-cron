@@ -365,7 +365,7 @@ const ExtractContributionsForUser = async (
     };
     let response = await octokit.graphql(`{
      user(login: "${_user.username}") {
-        contributionsCollection(from: "${_firstDayOfLastYear}", to: "${_dateNow}") {
+        contributionsCollection {
         commitContributionsByRepository {
         contributions(first: 100) {
             nodes {
