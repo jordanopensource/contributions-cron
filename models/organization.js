@@ -8,10 +8,6 @@ const organizationSchema = new Schema(
       type: String,
       required: true,
     },
-    github_id: {
-      type: String,
-      required: true,
-    },
     avatar_url: {
       type: String,
       required: true,
