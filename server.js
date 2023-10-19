@@ -327,13 +327,13 @@ const CleanDatabase = async () => {
     const userLocation = await result.user.location;
 
     if (!isInJordan(userLocation)) {
-      await User.deleteOne({ username: user.login });
+      await User.deleteOne({ username: user.username });
       console.log(
         `User ${user.username} has been removed due to the location not being jordan`
       );
     }
     if (isUserBlocked(user.username)) {
-      await User.deleteOne({ username: user.login });
+      await User.deleteOne({ username: user.username });
       console.log(
         `User ${user.username} has been removed because i found the user in the blocked list`
       );
