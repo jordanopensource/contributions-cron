@@ -12,7 +12,6 @@ const generalLogger = newLogger("general", textFormat);
 const cronLogger = newLogger("cron", textFormat);
 const dbLogger = newLogger("db", textFormat);
 const ioLogger = newLogger("io", textFormat);
-const httpLogger = newLogger("http", textFormat);
 const octokitLogger = newLogger("octokit", textFormat);
 
 const Organization = require("./models/organization");
@@ -256,6 +255,7 @@ const AddNewMembers = async () => {
     }
     await SaveUsersToDB(newUsers);
   } catch (err) {
+    octokitLogger.error(err);
     cronLogger.info(`No new members to add`);
   }
 };
@@ -437,8 +437,10 @@ const ExtractContributionsForUser = async (
     return commitsContributions;
   } catch (err) {
     if (err.errors[0].type == "NOT_FOUND") {
+      dbLogger.error(`The user ${_user.username} was not found`);
       await User.deleteOne({ username: _user.username });
     } else {
+      octokitLogger.error(err);
       throw err;
     }
   }
@@ -468,6 +470,7 @@ const SaveUserContributionsToDB = async () => {
         cronLogger.info(`User: ${user.username}, Contributions Updated`);
       }
     } catch (err) {
+      dbLogger.error(err);
       throw err;
     }
   }
@@ -493,7 +496,7 @@ const SaveOrganizationsToDB = async (_organizations) => {
       }
     } else {
       if (process.env.NODE_ENV !== "production") {
-        dbLogger.info(`Organization: ${org.login} Exists`);
+        dbLogger.error(`Organization: ${org.login} Exists`);
       }
     }
   }
@@ -524,6 +527,7 @@ const SaveOrganizationsRepositoriesToDB = async () => {
         dbLogger.info(`Organization: ${org.username}, Repositories Added`);
       }
     } catch (err) {
+      dbLogger.error(err);
       throw err;
     }
   }
@@ -626,8 +630,12 @@ const ExtractOrganizationRepositoriesFromGithub = async (_organization) => {
       return organizationRepositories;
     } catch (err) {
       if (err.errors[0].type == "NOT_FOUND") {
+        dbLogger.error(
+          `The organization ${_organization.username} was not found`,
+        );
         await Organization.deleteOne({ username: _organization.username });
       } else {
+        octokitLogger.error(err);
         throw err;
       }
     }
@@ -657,6 +665,7 @@ const ExtractOrganizationCreateDate = async (_orgUsername) => {
     return response.organization.createdAt;
   } catch (err) {
     if ((err.type = "NOT_FOUND")) {
+      dbLogger.error(`The organization ${_orgUsername} was not found`);
       await Organization.deleteOne({ username: _orgUsername });
     }
   }
@@ -681,6 +690,7 @@ const ExtractOrganizationMembers = async (_orgUsername) => {
     return members;
   } catch (err) {
     if (err.type === "NOT_FOUND") {
+      dbLogger.error(`The organization ${_orgUsername} was not found`);
       await Organization.deleteOne({ username: _orgUsername });
     }
   }
