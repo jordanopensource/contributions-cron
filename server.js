@@ -5,7 +5,15 @@ const fs = require("fs");
 const addTime = require("date-fns/add");
 const parseISO = require("date-fns/parseISO");
 const axios = require("axios");
-const { logger } = require("./logger.js");
+const { textFormat, newLogger } = require("./utils/logger.js");
+
+// loggers
+const generalLogger = newLogger("general", textFormat);
+const cronLogger = newLogger("cron", textFormat);
+const dbLogger = newLogger("db", textFormat);
+const ioLogger = newLogger("io", textFormat);
+const httpLogger = newLogger("http", textFormat);
+const octokitLogger = newLogger("octokit", textFormat);
 
 const Organization = require("./models/organization");
 const User = require("./models/user");
@@ -19,7 +27,7 @@ const getBlockedRepos = () => {
   fs.readFile("./blockedRepos.txt", "utf-8", (err, data) => {
     if (err) {
       // handle the error
-      logger.error(JSON.stringify(err));
+      ioLogger.error(JSON.stringify(err));
       return;
     }
 
@@ -39,7 +47,7 @@ const getBlockedUsers = () => {
   fs.readFile("./blockedUsers.txt", "utf-8", (err, data) => {
     if (err) {
       // handle the error
-      logger.error(JSON.stringify(err));
+      ioLogger.error(JSON.stringify(err));
       return;
     }
 
@@ -94,8 +102,8 @@ const ConnectToDB = async () => {
     useNewUrlParser: true,
     useUnifiedTopology: true,
   });
-  logger.info("Connected to the database");
-  logger.info(
+  dbLogger.info("Connected to the database");
+  dbLogger.info(
     `Database Host: ${mongoose.connection.host}\nDatabase Port: ${mongoose.connection.port}\nDatabase Name: ${mongoose.connection.name}`,
   );
 };
@@ -193,7 +201,7 @@ const SaveUsersToDB = async (_usersData) => {
         });
         await newUser.save();
         if (process.env.NODE_ENV !== "production") {
-          logger.info(
+          dbLogger.info(
             `User: ${newUser.username} and the location is ${newUser.location} was saved to DB`,
           );
         }
@@ -212,7 +220,7 @@ const SaveUsersToDB = async (_usersData) => {
           );
         } else {
           await User.deleteOne({ username: user.login });
-          logger.info(
+          dbLogger.info(
             `User ${user.name} has been removed due to the location not being jordan`,
           );
         }
@@ -248,7 +256,7 @@ const AddNewMembers = async () => {
     }
     await SaveUsersToDB(newUsers);
   } catch (err) {
-    logger.info(`No new members to add`);
+    cronLogger.info(`No new members to add`);
   }
 };
 
@@ -329,13 +337,13 @@ const CleanDatabase = async () => {
 
     if (!isInJordan(userLocation)) {
       await User.deleteOne({ username: user.username });
-      logger.info(
+      dbLogger.info(
         `User ${user.username} has been removed due to the location not being jordan`,
       );
     }
     if (isUserBlocked(user.username)) {
       await User.deleteOne({ username: user.username });
-      logger.info(
+      dbLogger.info(
         `User ${user.username} has been removed because i found the user in the blocked list`,
       );
     }
@@ -442,7 +450,7 @@ const SaveUserContributionsToDB = async () => {
   let firstDayOfLastYear = `${
     new Date().getFullYear() - 1
   }-01-01T00:00:00.000Z`;
-  logger.info(firstDayOfLastYear);
+  cronLogger.info(firstDayOfLastYear);
   let dateNow = new Date().toISOString();
   let users = await GetUsersFromDB({}, {});
   for (const user of users) {
@@ -457,7 +465,7 @@ const SaveUserContributionsToDB = async () => {
         { commit_contributions: userCommits },
       );
       if (process.env.NODE_ENV !== "production") {
-        logger.info(`User: ${user.username}, Contributions Updated`);
+        cronLogger.info(`User: ${user.username}, Contributions Updated`);
       }
     } catch (err) {
       throw err;
@@ -479,13 +487,13 @@ const SaveOrganizationsToDB = async (_organizations) => {
       });
       await newOrg.save();
       if (process.env.NODE_ENV !== "production") {
-        logger.info(
+        dbLogger.info(
           `Organization: ${newOrg.username} and the location is ${newOrg.location} was saved to DB`,
         );
       }
     } else {
       if (process.env.NODE_ENV !== "production") {
-        logger.info(`Organization: ${org.login} Exists`);
+        dbLogger.info(`Organization: ${org.login} Exists`);
       }
     }
   }
@@ -513,7 +521,7 @@ const SaveOrganizationsRepositoriesToDB = async () => {
         { repositories: orgRepos },
       );
       if (process.env.NODE_ENV !== "production") {
-        logger.info(`Organization: ${org.username}, Repositories Added`);
+        dbLogger.info(`Organization: ${org.username}, Repositories Added`);
       }
     } catch (err) {
       throw err;
@@ -692,31 +700,31 @@ const UpdateOrganizationsMembers = async () => {
 };
 
 const SyncOrganizations = async () => {
-  logger.info(
+  cronLogger.info(
     "Database Started Syncing Organizations\n-------------------------",
   );
   await ExtractOrganizationsFromGithub();
   await SaveOrganizationsRepositoriesToDB();
   // await UpdateOrganizationsInfo();
   await UpdateOrganizationsMembers();
-  logger.info(
+  cronLogger.info(
     "Database Finished Syncing Organizations\n-------------------------",
   );
 };
 
 const SyncUsers = async () => {
-  logger.info("Database Started Syncing Users\n-------------------------");
+  cronLogger.info("Database Started Syncing Users\n-------------------------");
   await ExtractUsersFromGithub();
-  logger.info("Started adding new members");
+  cronLogger.info("Started adding new members");
   await AddNewMembers();
-  logger.info("Finished adding new members");
+  cronLogger.info("Finished adding new members");
   await SaveUserContributionsToDB();
   await CalculateUserTotalCommitsByRepo();
-  logger.info("Database Finished Syncing Users\n-------------------------");
+  cronLogger.info("Database Finished Syncing Users\n-------------------------");
 };
 
 const CalculateScore = async () => {
-  logger.info("Cron Started Calculating Score\n-------------------------");
+  cronLogger.info("Cron Started Calculating Score\n-------------------------");
   let users = await GetUsersFromDB({}, {});
   for (const user of users) {
     let score = 0;
@@ -731,14 +739,14 @@ const CalculateScore = async () => {
 
     await User.updateOne({ username: user.username }, { score: score });
     if (process.env.NODE_ENV !== "production") {
-      logger.info(`User: ${user.name}, score calculated: ${score}`);
+      cronLogger.info(`User: ${user.name}, score calculated: ${score}`);
     }
   }
-  logger.info("Cron Finished Calculating Score\n-------------------------");
+  cronLogger.info("Cron Finished Calculating Score\n-------------------------");
 };
 
 const CalculateRepositoriesNumberForOrgs = async () => {
-  logger.info(
+  cronLogger.info(
     "Cron Started Calculating Repositories Number For The Organizations\n-------------------------",
   );
 
@@ -753,18 +761,18 @@ const CalculateRepositoriesNumberForOrgs = async () => {
       { repositories_count: numberOfRepositories },
     );
     if (process.env.NODE_ENV !== "production") {
-      logger.info(
+      cronLogger.info(
         `Org: ${org.username}, repositories Number: ${numberOfRepositories}`,
       );
     }
   }
-  logger.info(
+  cronLogger.info(
     "Cron Finished Calculating Repositories Number For The Organizations\n-------------------------",
   );
 };
 
 const CalculateCommitsCountForUsers = async () => {
-  logger.info(
+  cronLogger.info(
     "Cron Started Calculating Commits Count For The Users\n-------------------------",
   );
   let users = await User.find({});
@@ -781,18 +789,20 @@ const CalculateCommitsCountForUsers = async () => {
       { commitsTotalCount: userCommitsCount },
     );
     if (process.env.NODE_ENV !== "production") {
-      logger.info(
+      cronLogger.info(
         `User: ${user.username}, user commits Count: ${userCommitsCount}`,
       );
     }
   }
-  logger.info(
+  cronLogger.info(
     "Cron Finished Calculating Commits Count For The Users\n-------------------------",
   );
 };
 
 const RankUsersByScore = (_usersArray) => {
-  logger.info("Cron Started Ranking Users By Score\n-------------------------");
+  cronLogger.info(
+    "Cron Started Ranking Users By Score\n-------------------------",
+  );
   let startingRank = 1;
   let currentRank = startingRank;
   let rankValue = null;
@@ -812,14 +822,14 @@ const RankUsersByScore = (_usersArray) => {
     rankValue = user.score;
   });
 
-  logger.info(
+  cronLogger.info(
     "Cron Finished Ranking Users By Score\n-------------------------",
   );
   return userRanks;
 };
 
 const RankUsersByContributions = (_usersArray) => {
-  logger.info(
+  cronLogger.info(
     "Cron Started Ranking Users By Contributions\n-------------------------",
   );
   let startingRank = 1;
@@ -841,14 +851,14 @@ const RankUsersByContributions = (_usersArray) => {
     rankValue = user.commitsTotalCount;
   });
 
-  logger.info(
+  cronLogger.info(
     "Cron Finished Ranking Users By Contributions\n-------------------------",
   );
   return userRanks;
 };
 
 const UpdateUsersScoreRanks = async () => {
-  logger.info(
+  cronLogger.info(
     "Cron Started Updating Users Score Ranks\n-------------------------",
   );
   let users = await User.find({}, "username score").sort({
@@ -864,17 +874,17 @@ const UpdateUsersScoreRanks = async () => {
 
     if (process.env.NODE_ENV !== "production") {
       if (saved) {
-        logger.info(`User ${element.user.username} Got Saved`);
+        cronLogger.info(`User ${element.user.username} Got Saved`);
       }
     }
   }
-  logger.info(
+  cronLogger.info(
     "Cron Finished Updating Users Score Ranks\n-------------------------",
   );
 };
 
 const UpdateUsersContributionsRanks = async () => {
-  logger.info(
+  cronLogger.info(
     "Cron Started Updating Users Contributions Ranks\n-------------------------",
   );
   let users = await User.find({}, "username commitsTotalCount").sort({
@@ -890,11 +900,11 @@ const UpdateUsersContributionsRanks = async () => {
 
     if (process.env.NODE_ENV !== "production") {
       if (saved) {
-        logger.info(`User ${element.user.username} Got Saved`);
+        cronLogger.info(`User ${element.user.username} Got Saved`);
       }
     }
   }
-  logger.info(
+  cronLogger.info(
     "Cron Finished Updating Users Contributions Ranks\n-------------------------",
   );
 };
@@ -929,7 +939,7 @@ const CalculateUserTotalCommitsByRepo = async () => {
   let users = await GetUsersFromDB({}, {});
   for (const user of users) {
     if (process.env.NODE_ENV === "development")
-      logger.info(`Started updating user: ${user.username}`);
+      dbLogger.info(`Started updating user: ${user.username}`);
     const userCommits = await GetUserCommitContributionFromDB(user.username);
     const updatedCommitContributions = [];
     for (const repo of userCommits) {
@@ -955,7 +965,7 @@ const CalculateUserTotalCommitsByRepo = async () => {
       { commit_contributions: sortedContributions },
     );
     if (process.env.NODE_ENV === "development")
-      logger.info(`Finished updating user: ${user.username}`);
+      dbLogger.info(`Finished updating user: ${user.username}`);
   }
 };
 
@@ -995,7 +1005,7 @@ async function main() {
   await CreateStats();
 
   await mongoose.connection.close();
-  logger.info(
+  dbLogger.info(
     "Mongoose default connection with DB is disconnected, the job is finished.",
   );
   process.exit(0); // program will exit successfully
@@ -1006,6 +1016,6 @@ main();
 // listen for uncaught exceptions events
 process.on("uncaughtException", async (err) => {
   await mongoose.connection.close(); // close the database connection before exiting
-  logger.error(`Error while doing my job "THE ERROR": ${err}`); // logging the uncaught error
+  generalLogger.error(`Error while doing my job "THE ERROR": ${err}`); // logging the uncaught error
   process.exit(1); // exit with failure
 });
