@@ -1,3 +1,5 @@
+const { logger } = require("../logger.js");
+
 /**
  * Util function to return a promise which is resolved in provided milliseconds
  */
@@ -15,9 +17,10 @@ async function retryPromiseWithDelay(promise, nthTry, delayTime) {
     return res;
   } catch (e) {
     if (nthTry === 1) {
+      logger.error(JSON.stringify(e));
       return Promise.reject(e);
     }
-    console.log("retrying", nthTry, "time");
+    logger.info(`retrying: ${nthTry} time`);
     // wait for delayTime amount of time before calling this method again
     await waitFor(delayTime);
     return retryPromiseWithDelay(promise, nthTry - 1, delayTime);
