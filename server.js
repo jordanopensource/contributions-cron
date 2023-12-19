@@ -2,8 +2,6 @@ const mongoose = require("mongoose");
 const { Octokit } = require("octokit");
 const formatISO = require("date-fns/formatISO");
 const fs = require("fs");
-const addTime = require("date-fns/add");
-const parseISO = require("date-fns/parseISO");
 const axios = require("axios");
 const { textFormat, newLogger } = require("./utils/logger.js");
 
@@ -20,10 +18,12 @@ const Stat = require("./models/stat");
 
 const { retryPromiseWithDelay } = require("./utils/retry.js");
 
+const blacklistDirPath = "./blacklists";
+
 const getBlockedRepos = () => {
   const blockedRepos = [];
   // read the file as a utf-8 encoded string
-  fs.readFile("./blockedRepos.txt", "utf-8", (err, data) => {
+  fs.readFile(`${blacklistDirPath}/repos.txt`, "utf-8", (err, data) => {
     if (err) {
       // handle the error
       ioLogger.error(JSON.stringify(err));
@@ -43,7 +43,7 @@ const getBlockedRepos = () => {
 const getBlockedUsers = () => {
   const blockedUsers = [];
   // read the file as a utf-8 encoded string
-  fs.readFile("./blockedUsers.txt", "utf-8", (err, data) => {
+  fs.readFile(`${blacklistDirPath}/users.txt`, "utf-8", (err, data) => {
     if (err) {
       // handle the error
       ioLogger.error(JSON.stringify(err));
@@ -64,7 +64,7 @@ const blockedRepos = getBlockedRepos();
 const blockedUsers = getBlockedUsers();
 
 require("dotenv").config({
-  path: "./config.env",
+  path: "./.env",
 });
 
 const octokit = new Octokit({
@@ -1005,8 +1005,16 @@ const CreateStats = async () => {
 
 async function main() {
   await ConnectToDB();
-  await SyncUsers();
-  await SyncOrganizations();
+
+  const runMode = process.argv[2] ?? "syncUsers"; // "syncUsers" or "syncOrgs"
+  switch (runMode.toLowerCase()) {
+    case "syncusers":
+      await SyncUsers();
+      break;
+    case "syncorgs":
+      await SyncOrganizations();
+      break;
+  }
   await CalculateScore();
   await CalculateCommitsCountForUsers();
   await CalculateRepositoriesNumberForOrgs();
