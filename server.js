@@ -18,10 +18,12 @@ const Stat = require("./models/stat");
 
 const { retryPromiseWithDelay } = require("./utils/retry.js");
 
+const blacklistDirPath = "./blacklists";
+
 const getBlockedRepos = () => {
   const blockedRepos = [];
   // read the file as a utf-8 encoded string
-  fs.readFile("./blockedRepos.txt", "utf-8", (err, data) => {
+  fs.readFile(`${blacklistDirPath}/repos.txt`, "utf-8", (err, data) => {
     if (err) {
       // handle the error
       ioLogger.error(JSON.stringify(err));
@@ -41,7 +43,7 @@ const getBlockedRepos = () => {
 const getBlockedUsers = () => {
   const blockedUsers = [];
   // read the file as a utf-8 encoded string
-  fs.readFile("./blockedUsers.txt", "utf-8", (err, data) => {
+  fs.readFile(`${blacklistDirPath}/users.txt`, "utf-8", (err, data) => {
     if (err) {
       // handle the error
       ioLogger.error(JSON.stringify(err));
