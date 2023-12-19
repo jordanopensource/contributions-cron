@@ -1026,6 +1026,6 @@ main();
 // listen for uncaught exceptions events
 process.on("uncaughtException", async (err) => {
   await mongoose.connection.close(); // close the database connection before exiting
-  generalLogger.error(`Error while doing my job "THE ERROR": ${err}`); // logging the uncaught error
+  generalLogger.error(err); // logging the uncaught error
   process.exit(1); // exit with failure
 });
