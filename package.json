@@ -16,6 +16,7 @@
     "express": "^4.17.1",
     "graphql": "^15.6.1",
     "mongoose": "^6.0.10",
-    "octokit": "^1.7.0"
+    "octokit": "^1.7.0",
+    "winston": "^3.11.0"
   }
 }

@@ -5,6 +5,14 @@ const fs = require("fs");
 const addTime = require("date-fns/add");
 const parseISO = require("date-fns/parseISO");
 const axios = require("axios");
+const { textFormat, newLogger } = require("./utils/logger.js");
+
+// loggers
+const generalLogger = newLogger("general", textFormat);
+const cronLogger = newLogger("cron", textFormat);
+const dbLogger = newLogger("db", textFormat);
+const ioLogger = newLogger("io", textFormat);
+const octokitLogger = newLogger("octokit", textFormat);
 
 const Organization = require("./models/organization");
 const User = require("./models/user");
@@ -18,14 +26,14 @@ const getBlockedRepos = () => {
   fs.readFile("./blockedRepos.txt", "utf-8", (err, data) => {
     if (err) {
       // handle the error
-      console.error(err);
+      ioLogger.error(JSON.stringify(err));
       return;
     }
 
     // split the data into an array of names
     const repoNames = data.split("\n");
 
-    repoNames.forEach(repoName => {
+    repoNames.forEach((repoName) => {
       blockedRepos.push(repoName);
     });
   });
@@ -38,14 +46,14 @@ const getBlockedUsers = () => {
   fs.readFile("./blockedUsers.txt", "utf-8", (err, data) => {
     if (err) {
       // handle the error
-      console.error(err);
+      ioLogger.error(JSON.stringify(err));
       return;
     }
 
     // split the data into an array of names
     const usernames = data.split("\n");
 
-    usernames.forEach(username => {
+    usernames.forEach((username) => {
       blockedUsers.push(username);
     });
   });
@@ -93,9 +101,9 @@ const ConnectToDB = async () => {
     useNewUrlParser: true,
     useUnifiedTopology: true,
   });
-  console.info("Connected to the database");
-  console.info(
-    `Database Host: ${mongoose.connection.host}\nDatabase Port: ${mongoose.connection.port}\nDatabase Name: ${mongoose.connection.name}`
+  dbLogger.info("Connected to the database");
+  dbLogger.info(
+    `Database Host: ${mongoose.connection.host}\nDatabase Port: ${mongoose.connection.port}\nDatabase Name: ${mongoose.connection.name}`,
   );
 };
 
@@ -127,19 +135,19 @@ const GetLastRegisteredUserDate = async () => {
   return date.toISOString().split("T")[0];
 };
 
-const isRepoBlocked = _repoName => {
+const isRepoBlocked = (_repoName) => {
   for (const repo of blockedRepos) {
     return _repoName === repo;
   }
 };
 
-const isUserBlocked = _username => {
+const isUserBlocked = (_username) => {
   for (const user of blockedUsers) {
     return _username === user;
   }
 };
 
-const isInJordan = _location => {
+const isInJordan = (_location) => {
   if (!_location) {
     return false;
   }
@@ -164,7 +172,7 @@ const isInJordan = _location => {
   if (_location === "jordan") {
     locationFound = true;
   } else {
-    locationKeyWords.forEach(key => {
+    locationKeyWords.forEach((key) => {
       key = key.toLowerCase();
       if (_location.includes(key) && !locationFound) {
         locationFound = true;
@@ -174,7 +182,7 @@ const isInJordan = _location => {
   return locationFound;
 };
 
-const SaveUsersToDB = async _usersData => {
+const SaveUsersToDB = async (_usersData) => {
   for (const user of _usersData) {
     if (!isUserBlocked(user.login)) {
       let userExists = await User.exists({ username: user.login });
@@ -192,8 +200,8 @@ const SaveUsersToDB = async _usersData => {
         });
         await newUser.save();
         if (process.env.NODE_ENV !== "production") {
-          console.log(
-            `User: ${newUser.username} and the location is ${newUser.location} was saved to DB`
+          dbLogger.info(
+            `User: ${newUser.username} and the location is ${newUser.location} was saved to DB`,
           );
         }
       } else {
@@ -207,12 +215,12 @@ const SaveUsersToDB = async _usersData => {
               github_profile_url: user.url,
               bio: user.bio,
               company: user.company,
-            }
+            },
           );
         } else {
           await User.deleteOne({ username: user.login });
-          console.log(
-            `User ${user.name} has been removed due to the location not being jordan`
+          dbLogger.info(
+            `User ${user.name} has been removed due to the location not being jordan`,
           );
         }
       }
@@ -241,13 +249,14 @@ const AddNewMembers = async () => {
             isHireable
             createdAt
           }
-        }`
+        }`,
       );
       newUsers.push(result.user);
     }
     await SaveUsersToDB(newUsers);
   } catch (err) {
-    console.log(`No new members to add`);
+    octokitLogger.error(err);
+    cronLogger.info(`No new members to add`);
   }
 };
 
@@ -292,7 +301,7 @@ const ExtractUsersFromGithub = async () => {
           hasNextPage
         }
         }
-      }`
+      }`,
       );
       let newUsers = await result.search.nodes;
 
@@ -322,26 +331,26 @@ const CleanDatabase = async () => {
         user(login: "${user.username}") {
           location
         }
-      }`
+      }`,
     );
     const userLocation = await result.user.location;
 
     if (!isInJordan(userLocation)) {
       await User.deleteOne({ username: user.username });
-      console.log(
-        `User ${user.username} has been removed due to the location not being jordan`
+      dbLogger.info(
+        `User ${user.username} has been removed due to the location not being jordan`,
       );
     }
     if (isUserBlocked(user.username)) {
       await User.deleteOne({ username: user.username });
-      console.log(
-        `User ${user.username} has been removed because i found the user in the blocked list`
+      dbLogger.info(
+        `User ${user.username} has been removed because i found the user in the blocked list`,
       );
     }
   }
 };
 
-const GetUserCommitContributionFromDB = async _user => {
+const GetUserCommitContributionFromDB = async (_user) => {
   let user = await User.findOne({ username: _user });
   let userCommits = user.commit_contributions;
   return userCommits;
@@ -350,11 +359,11 @@ const GetUserCommitContributionFromDB = async _user => {
 const ExtractContributionsForUser = async (
   _user,
   _firstDayOfLastYear,
-  _dateNow
+  _dateNow,
 ) => {
   try {
     let commitsContributions = await GetUserCommitContributionFromDB(
-      _user.username
+      _user.username,
     );
     let commits = [];
     let newResult = {
@@ -404,14 +413,14 @@ const ExtractContributionsForUser = async (
           };
           if (!isRepoBlocked(newResult.repositoryName)) {
             let repositoryExists = commitsContributions.some(
-              x => x.url === node.repository.url
+              (x) => x.url === node.repository.url,
             );
             if (repositoryExists) {
               let objToUpdate = commitsContributions.find(
-                element => element.url === node.repository.url
+                (element) => element.url === node.repository.url,
               );
               let commitExists = objToUpdate.commits.some(
-                x => x.occurredAt == node.occurredAt
+                (x) => x.occurredAt == node.occurredAt,
               );
 
               objToUpdate["starsCount"] = node.repository.stargazerCount;
@@ -428,8 +437,10 @@ const ExtractContributionsForUser = async (
     return commitsContributions;
   } catch (err) {
     if (err.errors[0].type == "NOT_FOUND") {
+      dbLogger.error(`The user ${_user.username} was not found`);
       await User.deleteOne({ username: _user.username });
     } else {
+      octokitLogger.error(err);
       throw err;
     }
   }
@@ -441,7 +452,7 @@ const SaveUserContributionsToDB = async () => {
   let firstDayOfLastYear = `${
     new Date().getFullYear() - 1
   }-01-01T00:00:00.000Z`;
-  console.log(firstDayOfLastYear);
+  cronLogger.info(firstDayOfLastYear);
   let dateNow = new Date().toISOString();
   let users = await GetUsersFromDB({}, {});
   for (const user of users) {
@@ -449,22 +460,23 @@ const SaveUserContributionsToDB = async () => {
       let userCommits = await retryPromiseWithDelay(
         ExtractContributionsForUser(user, firstDayOfLastYear, dateNow),
         retries,
-        wait
+        wait,
       );
       await User.updateOne(
         { username: user.username },
-        { commit_contributions: userCommits }
+        { commit_contributions: userCommits },
       );
       if (process.env.NODE_ENV !== "production") {
-        console.log(`User: ${user.username}, Contributions Updated`);
+        cronLogger.info(`User: ${user.username}, Contributions Updated`);
       }
     } catch (err) {
+      dbLogger.error(err);
       throw err;
     }
   }
 };
 
-const SaveOrganizationsToDB = async _organizations => {
+const SaveOrganizationsToDB = async (_organizations) => {
   for (const org of _organizations) {
     let orgExists = await Organization.exists({ username: org.login });
     if (!orgExists) {
@@ -478,19 +490,19 @@ const SaveOrganizationsToDB = async _organizations => {
       });
       await newOrg.save();
       if (process.env.NODE_ENV !== "production") {
-        console.log(
-          `Organization: ${newOrg.username} and the location is ${newOrg.location} was saved to DB`
+        dbLogger.info(
+          `Organization: ${newOrg.username} and the location is ${newOrg.location} was saved to DB`,
         );
       }
     } else {
       if (process.env.NODE_ENV !== "production") {
-        console.log(`Organization: ${org.login} Exists`);
+        dbLogger.error(`Organization: ${org.login} Exists`);
       }
     }
   }
 };
 
-const GetOrganizationRepoFromDB = async _organization => {
+const GetOrganizationRepoFromDB = async (_organization) => {
   let org = await Organization.findOne({ username: _organization });
   let orgRepos = org.repositories;
   return orgRepos;
@@ -505,16 +517,17 @@ const SaveOrganizationsRepositoriesToDB = async () => {
       let orgRepos = await retryPromiseWithDelay(
         ExtractOrganizationRepositoriesFromGithub(org),
         retries,
-        wait
+        wait,
       );
       await Organization.updateOne(
         { username: org.username },
-        { repositories: orgRepos }
+        { repositories: orgRepos },
       );
       if (process.env.NODE_ENV !== "production") {
-        console.log(`Organization: ${org.username}, Repositories Added`);
+        dbLogger.info(`Organization: ${org.username}, Repositories Added`);
       }
     } catch (err) {
+      dbLogger.error(err);
       throw err;
     }
   }
@@ -567,9 +580,9 @@ const ExtractOrganizationsFromGithub = async () => {
   await SaveOrganizationsToDB(extractedOrganizations);
 };
 
-const ExtractOrganizationRepositoriesFromGithub = async _organization => {
+const ExtractOrganizationRepositoriesFromGithub = async (_organization) => {
   let organizationRepositories = await GetOrganizationRepoFromDB(
-    _organization.username
+    _organization.username,
   );
   let endCursor = null;
   let hasNextPage = true;
@@ -600,11 +613,11 @@ const ExtractOrganizationRepositoriesFromGithub = async _organization => {
           starsCount: repo.stargazerCount,
         };
         let repositoryExists = organizationRepositories.some(
-          x => x.name == repo.name
+          (x) => x.name == repo.name,
         );
         if (repositoryExists) {
           let objToUpdate = organizationRepositories.find(
-            element => element.name == repo.name
+            (element) => element.name == repo.name,
           );
           objToUpdate.starsCount = repo.stargazerCount;
         } else {
@@ -612,13 +625,17 @@ const ExtractOrganizationRepositoriesFromGithub = async _organization => {
         }
       }
 
-      hasNextPage = await response.organization.repositories.pageInfo
-        .hasNextPage;
+      hasNextPage =
+        await response.organization.repositories.pageInfo.hasNextPage;
       return organizationRepositories;
     } catch (err) {
       if (err.errors[0].type == "NOT_FOUND") {
+        dbLogger.error(
+          `The organization ${_organization.username} was not found`,
+        );
         await Organization.deleteOne({ username: _organization.username });
       } else {
+        octokitLogger.error(err);
         throw err;
       }
     }
@@ -632,13 +649,13 @@ const UpdateOrganizationsInfo = async () => {
     if (orgCreatedAt) {
       await Organization.updateOne(
         { username: org.username },
-        { organization_createdAt: orgCreatedAt }
+        { organization_createdAt: orgCreatedAt },
       );
     }
   }
 };
 
-const ExtractOrganizationCreateDate = async _orgUsername => {
+const ExtractOrganizationCreateDate = async (_orgUsername) => {
   try {
     let response = await octokit.graphql(`{
         organization(login: "${_orgUsername}") {
@@ -648,12 +665,13 @@ const ExtractOrganizationCreateDate = async _orgUsername => {
     return response.organization.createdAt;
   } catch (err) {
     if ((err.type = "NOT_FOUND")) {
+      dbLogger.error(`The organization ${_orgUsername} was not found`);
       await Organization.deleteOne({ username: _orgUsername });
     }
   }
 };
 
-const ExtractOrganizationMembers = async _orgUsername => {
+const ExtractOrganizationMembers = async (_orgUsername) => {
   try {
     let response = await octokit.graphql(`{
         organization(login: "${_orgUsername}") {
@@ -672,6 +690,7 @@ const ExtractOrganizationMembers = async _orgUsername => {
     return members;
   } catch (err) {
     if (err.type === "NOT_FOUND") {
+      dbLogger.error(`The organization ${_orgUsername} was not found`);
       await Organization.deleteOne({ username: _orgUsername });
     }
   }
@@ -684,38 +703,38 @@ const UpdateOrganizationsMembers = async () => {
     if (members) {
       await Organization.updateOne(
         { username: org.username },
-        { members: members }
+        { members: members },
       );
     }
   }
 };
 
 const SyncOrganizations = async () => {
-  console.log(
-    "Database Started Syncing Organizations\n-------------------------"
+  cronLogger.info(
+    "Database Started Syncing Organizations\n-------------------------",
   );
   await ExtractOrganizationsFromGithub();
   await SaveOrganizationsRepositoriesToDB();
   // await UpdateOrganizationsInfo();
   await UpdateOrganizationsMembers();
-  console.log(
-    "Database Finished Syncing Organizations\n-------------------------"
+  cronLogger.info(
+    "Database Finished Syncing Organizations\n-------------------------",
   );
 };
 
 const SyncUsers = async () => {
-  console.log("Database Started Syncing Users\n-------------------------");
+  cronLogger.info("Database Started Syncing Users\n-------------------------");
   await ExtractUsersFromGithub();
-  console.log("Started adding new members");
+  cronLogger.info("Started adding new members");
   await AddNewMembers();
-  console.log("Finished adding new members");
+  cronLogger.info("Finished adding new members");
   await SaveUserContributionsToDB();
   await CalculateUserTotalCommitsByRepo();
-  console.log("Database Finished Syncing Users\n-------------------------");
+  cronLogger.info("Database Finished Syncing Users\n-------------------------");
 };
 
 const CalculateScore = async () => {
-  console.log("Cron Started Calculating Score\n-------------------------");
+  cronLogger.info("Cron Started Calculating Score\n-------------------------");
   let users = await GetUsersFromDB({}, {});
   for (const user of users) {
     let score = 0;
@@ -730,15 +749,15 @@ const CalculateScore = async () => {
 
     await User.updateOne({ username: user.username }, { score: score });
     if (process.env.NODE_ENV !== "production") {
-      console.log(`User: ${user.name}, score calculated: ${score}`);
+      cronLogger.info(`User: ${user.name}, score calculated: ${score}`);
     }
   }
-  console.log("Cron Finished Calculating Score\n-------------------------");
+  cronLogger.info("Cron Finished Calculating Score\n-------------------------");
 };
 
 const CalculateRepositoriesNumberForOrgs = async () => {
-  console.log(
-    "Cron Started Calculating Repositories Number For The Organizations\n-------------------------"
+  cronLogger.info(
+    "Cron Started Calculating Repositories Number For The Organizations\n-------------------------",
   );
 
   let orgs = await Organization.find({});
@@ -749,22 +768,22 @@ const CalculateRepositoriesNumberForOrgs = async () => {
     }
     await Organization.updateOne(
       { username: org.username },
-      { repositories_count: numberOfRepositories }
+      { repositories_count: numberOfRepositories },
     );
     if (process.env.NODE_ENV !== "production") {
-      console.log(
-        `Org: ${org.username}, repositories Number: ${numberOfRepositories}`
+      cronLogger.info(
+        `Org: ${org.username}, repositories Number: ${numberOfRepositories}`,
       );
     }
   }
-  console.log(
-    "Cron Finished Calculating Repositories Number For The Organizations\n-------------------------"
+  cronLogger.info(
+    "Cron Finished Calculating Repositories Number For The Organizations\n-------------------------",
   );
 };
 
 const CalculateCommitsCountForUsers = async () => {
-  console.log(
-    "Cron Started Calculating Commits Count For The Users\n-------------------------"
+  cronLogger.info(
+    "Cron Started Calculating Commits Count For The Users\n-------------------------",
   );
   let users = await User.find({});
   for (const user of users) {
@@ -777,21 +796,23 @@ const CalculateCommitsCountForUsers = async () => {
     }
     await User.updateOne(
       { username: user.username },
-      { commitsTotalCount: userCommitsCount }
+      { commitsTotalCount: userCommitsCount },
     );
     if (process.env.NODE_ENV !== "production") {
-      console.log(
-        `User: ${user.username}, user commits Count: ${userCommitsCount}`
+      cronLogger.info(
+        `User: ${user.username}, user commits Count: ${userCommitsCount}`,
       );
     }
   }
-  console.log(
-    "Cron Finished Calculating Commits Count For The Users\n-------------------------"
+  cronLogger.info(
+    "Cron Finished Calculating Commits Count For The Users\n-------------------------",
   );
 };
 
-const RankUsersByScore = _usersArray => {
-  console.log("Cron Started Ranking Users By Score\n-------------------------");
+const RankUsersByScore = (_usersArray) => {
+  cronLogger.info(
+    "Cron Started Ranking Users By Score\n-------------------------",
+  );
   let startingRank = 1;
   let currentRank = startingRank;
   let rankValue = null;
@@ -800,7 +821,7 @@ const RankUsersByScore = _usersArray => {
   let usersSorted = _usersArray.slice().sort((a, b) => {
     return b.score - a.score;
   });
-  usersSorted.forEach(user => {
+  usersSorted.forEach((user) => {
     if (user.score !== rankValue && rankValue !== null) {
       currentRank++;
     }
@@ -811,15 +832,15 @@ const RankUsersByScore = _usersArray => {
     rankValue = user.score;
   });
 
-  console.log(
-    "Cron Finished Ranking Users By Score\n-------------------------"
+  cronLogger.info(
+    "Cron Finished Ranking Users By Score\n-------------------------",
   );
   return userRanks;
 };
 
-const RankUsersByContributions = _usersArray => {
-  console.log(
-    "Cron Started Ranking Users By Contributions\n-------------------------"
+const RankUsersByContributions = (_usersArray) => {
+  cronLogger.info(
+    "Cron Started Ranking Users By Contributions\n-------------------------",
   );
   let startingRank = 1;
   let currentRank = startingRank;
@@ -829,7 +850,7 @@ const RankUsersByContributions = _usersArray => {
   let usersSorted = _usersArray.sort((a, b) => {
     return b.commitsTotalCount - a.commitsTotalCount;
   });
-  usersSorted.forEach(user => {
+  usersSorted.forEach((user) => {
     if (user.commitsTotalCount !== rankValue && rankValue !== null) {
       currentRank++;
     }
@@ -840,15 +861,15 @@ const RankUsersByContributions = _usersArray => {
     rankValue = user.commitsTotalCount;
   });
 
-  console.log(
-    "Cron Finished Ranking Users By Contributions\n-------------------------"
+  cronLogger.info(
+    "Cron Finished Ranking Users By Contributions\n-------------------------",
   );
   return userRanks;
 };
 
 const UpdateUsersScoreRanks = async () => {
-  console.log(
-    "Cron Started Updating Users Score Ranks\n-------------------------"
+  cronLogger.info(
+    "Cron Started Updating Users Score Ranks\n-------------------------",
   );
   let users = await User.find({}, "username score").sort({
     score: -1,
@@ -857,24 +878,24 @@ const UpdateUsersScoreRanks = async () => {
   const usersRankedByScore = RankUsersByScore(users);
 
   for (const element of usersRankedByScore) {
-    const doc = await User.findOne({ "username": element.user.username });
+    const doc = await User.findOne({ username: element.user.username });
     doc.score_rank = element.currentRank;
     const saved = await doc.save();
 
     if (process.env.NODE_ENV !== "production") {
       if (saved) {
-        console.log(`User ${element.user.username} Got Saved`);
+        cronLogger.info(`User ${element.user.username} Got Saved`);
       }
     }
   }
-  console.log(
-    "Cron Finished Updating Users Score Ranks\n-------------------------"
+  cronLogger.info(
+    "Cron Finished Updating Users Score Ranks\n-------------------------",
   );
 };
 
 const UpdateUsersContributionsRanks = async () => {
-  console.log(
-    "Cron Started Updating Users Contributions Ranks\n-------------------------"
+  cronLogger.info(
+    "Cron Started Updating Users Contributions Ranks\n-------------------------",
   );
   let users = await User.find({}, "username commitsTotalCount").sort({
     commitsTotalCount: -1,
@@ -883,18 +904,18 @@ const UpdateUsersContributionsRanks = async () => {
   const usersRankedByContributions = RankUsersByContributions(users);
 
   for (const element of usersRankedByContributions) {
-    const doc = await User.findOne({ "username": element.user.username });
+    const doc = await User.findOne({ username: element.user.username });
     doc.contributions_rank = element.currentRank;
     const saved = await doc.save();
 
     if (process.env.NODE_ENV !== "production") {
       if (saved) {
-        console.log(`User ${element.user.username} Got Saved`);
+        cronLogger.info(`User ${element.user.username} Got Saved`);
       }
     }
   }
-  console.log(
-    "Cron Finished Updating Users Contributions Ranks\n-------------------------"
+  cronLogger.info(
+    "Cron Finished Updating Users Contributions Ranks\n-------------------------",
   );
 };
 
@@ -903,14 +924,14 @@ const UpdateUsersRanks = async () => {
   await UpdateUsersContributionsRanks();
 };
 
-const GetLast30DaysCommits = _commitsList => {
+const GetLast30DaysCommits = (_commitsList) => {
   const currentDate = new Date();
   const currentDateTime = currentDate.getTime();
   const last30DaysDate = new Date(
-    currentDate.setDate(currentDate.getDate() - 30)
+    currentDate.setDate(currentDate.getDate() - 30),
   );
   const last30DaysDateTime = last30DaysDate.getTime();
-  const lastMonthsCommits = _commitsList.filter(commit => {
+  const lastMonthsCommits = _commitsList.filter((commit) => {
     const elementDateTime = new Date(commit.occurredAt).getTime();
     if (
       elementDateTime <= currentDateTime &&
@@ -928,7 +949,7 @@ const CalculateUserTotalCommitsByRepo = async () => {
   let users = await GetUsersFromDB({}, {});
   for (const user of users) {
     if (process.env.NODE_ENV === "development")
-      console.log(`Started updating user: ${user.username}`);
+      dbLogger.info(`Started updating user: ${user.username}`);
     const userCommits = await GetUserCommitContributionFromDB(user.username);
     const updatedCommitContributions = [];
     for (const repo of userCommits) {
@@ -951,10 +972,10 @@ const CalculateUserTotalCommitsByRepo = async () => {
 
     await User.updateOne(
       { username: user.username },
-      { commit_contributions: sortedContributions }
+      { commit_contributions: sortedContributions },
     );
     if (process.env.NODE_ENV === "development")
-      console.log(`Finished updating user: ${user.username}`);
+      dbLogger.info(`Finished updating user: ${user.username}`);
   }
 };
 
@@ -994,8 +1015,8 @@ async function main() {
   await CreateStats();
 
   await mongoose.connection.close();
-  console.log(
-    "Mongoose default connection with DB is disconnected, the job is finished."
+  dbLogger.info(
+    "Mongoose default connection with DB is disconnected, the job is finished.",
   );
   process.exit(0); // program will exit successfully
 }
@@ -1003,8 +1024,8 @@ async function main() {
 main();
 
 // listen for uncaught exceptions events
-process.on("uncaughtException", async err => {
+process.on("uncaughtException", async (err) => {
   await mongoose.connection.close(); // close the database connection before exiting
-  console.error(`Error while doing my job "THE ERROR": ${err}`); // logging the uncaught error
+  generalLogger.error(err); // logging the uncaught error
   process.exit(1); // exit with failure
 });
