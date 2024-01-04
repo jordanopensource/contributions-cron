@@ -11,13 +11,13 @@ const colorizeOpt = {
 };
 
 function newLogger(labelTitle) {
-  if (process.env.LOG_TYPE === "text") {
+  if (process.env.LOG_TYPE === "json") {
     return createLogger({
       level: process.env.LOG_LEVEL || "info",
       format: combine(
-        colorize(colorizeOpt),
         label({ label: labelTitle }),
-        printf(info => `[${info.label}] ${info.level}: ${info.message}`)
+        json(),
+        colorize(colorizeOpt)
       ),
       transports: [new transports.Console()],
     });
@@ -25,9 +25,9 @@ function newLogger(labelTitle) {
     return createLogger({
       level: process.env.LOG_LEVEL || "info",
       format: combine(
+        colorize(colorizeOpt),
         label({ label: labelTitle }),
-        json(),
-        colorize(colorizeOpt)
+        printf(info => `[${info.label}] ${info.level}: ${info.message}`)
       ),
       transports: [new transports.Console()],
     });
