@@ -16,10 +16,8 @@ function newLogger(labelTitle) {
       level: process.env.LOG_LEVEL || "info",
       format: combine(
         colorize(colorizeOpt),
-        timestamp({
-          format: "YYYY-MM-DD hh:mm:ss.SSS A",
-        }),
-        printf(info => `[${info.timestamp}] ${info.level}: ${info.message}`)
+        label({ label: labelTitle }),
+        printf(info => `[${info.label}] ${info.level}: ${info.message}`)
       ),
       transports: [new transports.Console()],
     });
@@ -27,9 +25,8 @@ function newLogger(labelTitle) {
     return createLogger({
       level: process.env.LOG_LEVEL || "info",
       format: combine(
-        json(),
-        timestamp(),
         label({ label: labelTitle }),
+        json(),
         colorize(colorizeOpt)
       ),
       transports: [new transports.Console()],
