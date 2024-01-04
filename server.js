@@ -493,16 +493,11 @@ const GetOrganizationRepoFromDB = async _organization => {
 };
 
 const SaveOrganizationsRepositoriesToDB = async () => {
-  const retries = 2;
-  const wait = 3600000;
   let organizations = await Organization.find({});
   for (const org of organizations) {
     try {
-      let orgRepos = await retryPromiseWithDelay(
-        ExtractOrganizationRepositoriesFromGithub(org),
-        retries,
-        wait
-      );
+      let orgRepos = await ExtractOrganizationRepositoriesFromGithub(org);
+
       await Organization.updateOne(
         { username: org.username },
         { repositories: orgRepos }
