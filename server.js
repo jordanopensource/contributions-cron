@@ -963,8 +963,8 @@ const CalculateUserTotalCommitsByRepo = async () => {
 const CreateStats = async () => {
   let commitsCount = 0;
   let commitsList = [];
-  const usersCount = await User.count({});
-  const orgsCount = await Organization.count({});
+  const usersCount = await User.countDocuments({});
+  const orgsCount = await Organization.countDocuments({});
   const users = await User.find({}, "commit_contributions");
   for (const user of users) {
     for (const repo of user.commit_contributions) {
