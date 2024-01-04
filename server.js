@@ -524,35 +524,41 @@ const ExtractOrganizationsFromGithub = async () => {
     "Maan",
     "Ajloun",
   ];
-  const startDate = await GetLastRegisteredOrgDate();
   let extractedOrganizations = [];
   for (let index = 0; index < locationsToSearch.length; index++) {
-    let result = await octokit.graphql(`
-        {
-          search(query: "location:${locationsToSearch[index]} type:org created:>=${startDate}", type: USER, first: 100) {
-          userCount
+    let endCursor = null;
+    let hasNextPage = true;
+    while (hasNextPage) {
+      let pageCursor = endCursor === null ? `${endCursor}` : `"${endCursor}"`;
+      let result = await octokit.graphql(
+        `{
+          search(query: "location:${locationsToSearch[index]} type:org", type: USER, first: 100, after: ${pageCursor}) {
           nodes {
-          ... on Organization {
-            id
-            login
-            avatarUrl
-            name
-            location
-            url
-            createdAt
+            ... on Organization {
+              id
+              login
+              avatarUrl
+              name
+              location
+              url
+              createdAt
+            }
           }
+          pageInfo {
+           endCursor
+           hasNextPage
+          }
+          }
+      }`
+      );
+      let newOrg = await result.search.nodes;
+      for (const org of newOrg) {
+        if (isInJordan(org.location)) {
+          extractedOrganizations = [...extractedOrganizations, org];
         }
-        pageInfo {
-        endCursor
-        hasNextPage
       }
-  }
-}`);
-    let newOrg = await result.search.nodes;
-    for (const org of newOrg) {
-      if (isInJordan(org.location)) {
-        extractedOrganizations = [...extractedOrganizations, org];
-      }
+      hasNextPage = await result.search.pageInfo.hasNextPage;
+      endCursor = await result.search.pageInfo.endCursor;
     }
   }
   await SaveOrganizationsToDB(extractedOrganizations);
