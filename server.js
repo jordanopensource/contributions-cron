@@ -225,38 +225,6 @@ const SaveUsersToDB = async _usersData => {
   }
 };
 
-const AddNewMembers = async () => {
-  try {
-    const response = await axios.get(`${process.env.API_URL}/v1/usersToAdd`);
-    const usersToAdd = response.data.data;
-
-    let newUsers = [];
-    for (const user of usersToAdd) {
-      let result = await octokit.graphql(
-        `{
-          user(login: "${user}") {
-            id
-            login
-            avatarUrl
-            name
-            location
-            bio
-            url
-            company
-            isHireable
-            createdAt
-          }
-        }`
-      );
-      newUsers.push(result.user);
-    }
-    await SaveUsersToDB(newUsers);
-  } catch (err) {
-    octokitLogger.error(err);
-    cronLogger.info(`No new members to add`);
-  }
-};
-
 const ExtractUsersFromGithub = async () => {
   let locationsToSearch = [
     "Jordan",
@@ -741,9 +709,6 @@ const SyncOrganizations = async () => {
 const SyncUsers = async () => {
   cronLogger.info("Database Started Syncing Users\n-------------------------");
   await ExtractUsersFromGithub();
-  cronLogger.info("Started adding new members");
-  await AddNewMembers();
-  cronLogger.info("Finished adding new members");
   await SaveUserContributionsToDB();
   await CalculateUserTotalCommitsByRepo();
   cronLogger.info("Database Finished Syncing Users\n-------------------------");
