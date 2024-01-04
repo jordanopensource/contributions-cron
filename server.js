@@ -1,8 +1,6 @@
 const mongoose = require("mongoose");
 const { Octokit } = require("octokit");
-const formatISO = require("date-fns/formatISO");
 const fs = require("fs");
-const axios = require("axios");
 const { newLogger } = require("./utils/logger.js");
 
 // loggers
