@@ -104,34 +104,6 @@ const ConnectToDB = async () => {
   );
 };
 
-const GetLastRegisteredOrgDate = async () => {
-  let lastOrganization = await Organization.findOne({}).sort({
-    organization_createdAt: -1,
-  });
-  const date = new Date(lastOrganization.organization_createdAt);
-  return date.toISOString().split("T")[0];
-};
-
-const GetDateNow = () => {
-  let date = Date.now();
-  date = formatISO(date, { representation: "date" });
-  date = `${date}T00:00:00.000Z`;
-  return date;
-};
-
-const GetNextDay = () => {
-  let date = Date.now();
-  date = formatISO(date, { representation: "date" });
-  let nextDay = `${date}T23:59:59.999Z`;
-  return nextDay;
-};
-
-const GetLastRegisteredUserDate = async () => {
-  let lastUser = await User.findOne({}).sort({ user_createdAt: -1 });
-  const date = new Date(lastUser.user_createdAt);
-  return date.toISOString().split("T")[0];
-};
-
 const isRepoBlocked = _repoName => {
   for (const repo of blockedRepos) {
     return _repoName === repo;
