@@ -436,7 +436,6 @@ const SaveUserContributionsToDB = async () => {
   let firstDayOfLastYear = `${
     new Date().getFullYear() - 1
   }-01-01T00:00:00.000Z`;
-  cronLogger.info(firstDayOfLastYear);
   let dateNow = new Date().toISOString();
   let users = await GetUsersFromDB({}, {});
   for (const user of users) {
