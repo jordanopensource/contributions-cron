@@ -280,12 +280,6 @@ const CleanDatabase = async () => {
           `User ${user.username} has been removed due to the location not being jordan`
         );
       }
-      if (isUserBlocked(user.username)) {
-        await User.deleteOne({ username: user.username });
-        dbLogger.info(
-          `User ${user.username} has been removed because i found the user in the blocked list`
-        );
-      }
     } catch (error) {
       if (error.errors[0].type == "NOT_FOUND") {
         octokitLogger.error(`The user ${user.username} was not found`);
