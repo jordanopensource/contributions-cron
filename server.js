@@ -612,6 +612,8 @@ const ExtractOrganizationRepositoriesFromGithub = async _organization => {
           `The organization ${_organization.username} was not found`
         );
         await Organization.deleteOne({ username: _organization.username });
+        // if the request failed exit the loop
+        hasNextPage = false;
       } else {
         octokitLogger.error(err);
         throw err;
