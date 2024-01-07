@@ -260,6 +260,8 @@ const GetUsersFromDB = async (_filter = {}, _sort = {}) => {
 const CleanDatabase = async () => {
   cron.info("Starting database cleanup...");
   const users = await GetUsersFromDB();
+  // Create an empty array to group the users we want to delete
+  const usersToDelete = [];
   for (const user of users) {
     try {
       let result = await octokit.graphql(
@@ -272,24 +274,36 @@ const CleanDatabase = async () => {
       const userLocation = await result.user.location;
 
       if (!isInJordan(userLocation)) {
-        await User.deleteOne({ username: user.username });
-        dbLogger.info(
-          `User ${user.username} has been removed due to the location not being jordan`
+        // If the user location is not in jordan add it to the delete list
+        usersToDelete.push(user._id);
+        cronLogger.info(
+          `User ${user.username} has been added to the delete list duo location not being in jordan`
         );
       }
     } catch (error) {
       if (error.errors[0].type == "NOT_FOUND") {
         octokitLogger.error(`The user ${user.username} was not found`);
-        try {
-          await User.deleteOne({ username: user.username });
-        } catch (error) {
-          dbLogger.error(`Could not delete user ${user.username}: ${error}`);
-        }
+        // If the user was not found in github add it to the delete list
+        usersToDelete.push(user._id);
+        cronLogger.info(
+          "User has been added to the delete list duo not being found"
+        );
       } else {
         octokitLogger.error(error);
         throw err;
       }
     }
+  }
+  try {
+    // Delete all the users in the delete list in one single query
+    await User.deleteMany({
+      _id: {
+        $in: usersToDelete,
+      },
+    });
+    cron.info(`Users with those ids have been deleted : ${usersToDelete}`);
+  } catch (error) {
+    dbLogger.error("Could not delete users: ", error);
   }
   cron.info("Database cleanup finished...");
 };
