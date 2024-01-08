@@ -1,16 +1,13 @@
 const mongoose = require("mongoose");
 const { Octokit } = require("octokit");
-const formatISO = require("date-fns/formatISO");
 const fs = require("fs");
-const axios = require("axios");
-const { textFormat, newLogger } = require("./utils/logger.js");
+const { newLogger } = require("./utils/logger.js");
 
 // loggers
-const generalLogger = newLogger("general", textFormat);
-const cronLogger = newLogger("cron", textFormat);
-const dbLogger = newLogger("db", textFormat);
-const ioLogger = newLogger("io", textFormat);
-const octokitLogger = newLogger("octokit", textFormat);
+const cronLogger = newLogger("cron");
+const dbLogger = newLogger("db");
+const ioLogger = newLogger("io");
+const octokitLogger = newLogger("github");
 
 const Organization = require("./models/organization");
 const User = require("./models/user");
@@ -97,42 +94,11 @@ const ConnectToDB = async () => {
       process.env.CA_PATH +
       "";
   }
-  await mongoose.connect(DB_URL, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  });
+  await mongoose.connect(DB_URL);
   dbLogger.info("Connected to the database");
-  dbLogger.info(
-    `Database Host: ${mongoose.connection.host}\nDatabase Port: ${mongoose.connection.port}\nDatabase Name: ${mongoose.connection.name}`
-  );
-};
-
-const GetLastRegisteredOrgDate = async () => {
-  let lastOrganization = await Organization.findOne({}).sort({
-    organization_createdAt: -1,
-  });
-  const date = new Date(lastOrganization.organization_createdAt);
-  return date.toISOString().split("T")[0];
-};
-
-const GetDateNow = () => {
-  let date = Date.now();
-  date = formatISO(date, { representation: "date" });
-  date = `${date}T00:00:00.000Z`;
-  return date;
-};
-
-const GetNextDay = () => {
-  let date = Date.now();
-  date = formatISO(date, { representation: "date" });
-  let nextDay = `${date}T23:59:59.999Z`;
-  return nextDay;
-};
-
-const GetLastRegisteredUserDate = async () => {
-  let lastUser = await User.findOne({}).sort({ user_createdAt: -1 });
-  const date = new Date(lastUser.user_createdAt);
-  return date.toISOString().split("T")[0];
+  dbLogger.info(`Database Host: ${mongoose.connection.host}`);
+  dbLogger.info(`Database Name: ${mongoose.connection.name}`);
+  dbLogger.info(`Database Port: ${mongoose.connection.port}`);
 };
 
 const isRepoBlocked = _repoName => {
@@ -228,38 +194,6 @@ const SaveUsersToDB = async _usersData => {
   }
 };
 
-const AddNewMembers = async () => {
-  try {
-    const response = await axios.get(`${process.env.API_URL}/v1/usersToAdd`);
-    const usersToAdd = response.data.data;
-
-    let newUsers = [];
-    for (const user of usersToAdd) {
-      let result = await octokit.graphql(
-        `{
-          user(login: "${user}") {
-            id
-            login
-            avatarUrl
-            name
-            location
-            bio
-            url
-            company
-            isHireable
-            createdAt
-          }
-        }`
-      );
-      newUsers.push(result.user);
-    }
-    await SaveUsersToDB(newUsers);
-  } catch (err) {
-    octokitLogger.error(err);
-    cronLogger.info(`No new members to add`);
-  }
-};
-
 const ExtractUsersFromGithub = async () => {
   let locationsToSearch = [
     "Jordan",
@@ -324,8 +258,10 @@ const GetUsersFromDB = async (_filter = {}, _sort = {}) => {
 };
 
 const CleanDatabase = async () => {
-  dbLogger.info("Starting database cleanup...");
+  cron.info("Starting database cleanup...");
   const users = await GetUsersFromDB();
+  // Create an empty array to group the users we want to delete
+  const usersToDelete = [];
   for (const user of users) {
     try {
       let result = await octokit.graphql(
@@ -338,35 +274,38 @@ const CleanDatabase = async () => {
       const userLocation = await result.user.location;
 
       if (!isInJordan(userLocation)) {
-        await User.deleteOne({ username: user.username });
-        dbLogger.info(
-          `User ${user.username} has been removed due to the location not being jordan`
-        );
-      }
-      if (isUserBlocked(user.username)) {
-        await User.deleteOne({ username: user.username });
-        dbLogger.info(
-          `User ${user.username} has been removed because i found the user in the blocked list`
+        // If the user location is not in jordan add it to the delete list
+        usersToDelete.push(user._id);
+        cronLogger.info(
+          `User ${user.username} has been added to the delete list duo location not being in jordan`
         );
       }
     } catch (error) {
       if (error.errors[0].type == "NOT_FOUND") {
         octokitLogger.error(`The user ${user.username} was not found`);
-        try {
-          await User.deleteOne({ username: user.username });
-          dbLogger.info(
-            `The user ${user.username} has been deleted from database`
-          );
-        } catch (error) {
-          dbLogger.error(error);
-        }
+        // If the user was not found in github add it to the delete list
+        usersToDelete.push(user._id);
+        cronLogger.info(
+          "User has been added to the delete list duo not being found"
+        );
       } else {
         octokitLogger.error(error);
         throw err;
       }
     }
   }
-  dbLogger.info("Database cleanup finished...");
+  try {
+    // Delete all the users in the delete list in one single query
+    await User.deleteMany({
+      _id: {
+        $in: usersToDelete,
+      },
+    });
+    cron.info(`Users with those ids have been deleted : ${usersToDelete}`);
+  } catch (error) {
+    dbLogger.error("Could not delete users: ", error);
+  }
+  cron.info("Database cleanup finished...");
 };
 
 const GetUserCommitContributionFromDB = async _user => {
@@ -456,7 +395,7 @@ const ExtractContributionsForUser = async (
     return commitsContributions;
   } catch (err) {
     if (err.errors[0].type == "NOT_FOUND") {
-      dbLogger.error(`The user ${_user.username} was not found`);
+      octokitLogger.error(`The user ${_user.username} was not found`);
       await User.deleteOne({ username: _user.username });
     } else {
       octokitLogger.error(err);
@@ -471,7 +410,6 @@ const SaveUserContributionsToDB = async () => {
   let firstDayOfLastYear = `${
     new Date().getFullYear() - 1
   }-01-01T00:00:00.000Z`;
-  cronLogger.info(firstDayOfLastYear);
   let dateNow = new Date().toISOString();
   let users = await GetUsersFromDB({}, {});
   for (const user of users) {
@@ -489,7 +427,7 @@ const SaveUserContributionsToDB = async () => {
         cronLogger.info(`User: ${user.username}, Contributions Updated`);
       }
     } catch (err) {
-      dbLogger.error(err);
+      dbLogger.error(`Could not update ${user.username} contributions: ${err}`);
       throw err;
     }
   }
@@ -528,16 +466,11 @@ const GetOrganizationRepoFromDB = async _organization => {
 };
 
 const SaveOrganizationsRepositoriesToDB = async () => {
-  const retries = 2;
-  const wait = 3600000;
   let organizations = await Organization.find({});
   for (const org of organizations) {
     try {
-      let orgRepos = await retryPromiseWithDelay(
-        ExtractOrganizationRepositoriesFromGithub(org),
-        retries,
-        wait
-      );
+      let orgRepos = await ExtractOrganizationRepositoriesFromGithub(org);
+
       await Organization.updateOne(
         { username: org.username },
         { repositories: orgRepos }
@@ -546,7 +479,7 @@ const SaveOrganizationsRepositoriesToDB = async () => {
         dbLogger.info(`Organization: ${org.username}, Repositories Added`);
       }
     } catch (err) {
-      dbLogger.error(err);
+      dbLogger.error(`Could not update ${org.username} repositories: ${err}`);
       throw err;
     }
   }
@@ -565,35 +498,41 @@ const ExtractOrganizationsFromGithub = async () => {
     "Maan",
     "Ajloun",
   ];
-  const startDate = await GetLastRegisteredOrgDate();
   let extractedOrganizations = [];
   for (let index = 0; index < locationsToSearch.length; index++) {
-    let result = await octokit.graphql(`
-        {
-          search(query: "location:${locationsToSearch[index]} type:org created:>=${startDate}", type: USER, first: 100) {
-          userCount
+    let endCursor = null;
+    let hasNextPage = true;
+    while (hasNextPage) {
+      let pageCursor = endCursor === null ? `${endCursor}` : `"${endCursor}"`;
+      let result = await octokit.graphql(
+        `{
+          search(query: "location:${locationsToSearch[index]} type:org", type: USER, first: 100, after: ${pageCursor}) {
           nodes {
-          ... on Organization {
-            id
-            login
-            avatarUrl
-            name
-            location
-            url
-            createdAt
+            ... on Organization {
+              id
+              login
+              avatarUrl
+              name
+              location
+              url
+              createdAt
+            }
           }
+          pageInfo {
+           endCursor
+           hasNextPage
+          }
+          }
+      }`
+      );
+      let newOrg = await result.search.nodes;
+      for (const org of newOrg) {
+        if (isInJordan(org.location)) {
+          extractedOrganizations = [...extractedOrganizations, org];
         }
-        pageInfo {
-        endCursor
-        hasNextPage
       }
-  }
-}`);
-    let newOrg = await result.search.nodes;
-    for (const org of newOrg) {
-      if (isInJordan(org.location)) {
-        extractedOrganizations = [...extractedOrganizations, org];
-      }
+      hasNextPage = await result.search.pageInfo.hasNextPage;
+      endCursor = await result.search.pageInfo.endCursor;
     }
   }
   await SaveOrganizationsToDB(extractedOrganizations);
@@ -649,10 +588,12 @@ const ExtractOrganizationRepositoriesFromGithub = async _organization => {
       return organizationRepositories;
     } catch (err) {
       if (err.errors[0].type == "NOT_FOUND") {
-        dbLogger.error(
+        octokitLogger.error(
           `The organization ${_organization.username} was not found`
         );
         await Organization.deleteOne({ username: _organization.username });
+        // if the request failed exit the loop
+        hasNextPage = false;
       } else {
         octokitLogger.error(err);
         throw err;
@@ -709,7 +650,7 @@ const ExtractOrganizationMembers = async _orgUsername => {
     return members;
   } catch (err) {
     if (err.type === "NOT_FOUND") {
-      dbLogger.error(`The organization ${_orgUsername} was not found`);
+      octokitLogger.error(`The organization ${_orgUsername} was not found`);
       await Organization.deleteOne({ username: _orgUsername });
     }
   }
@@ -729,31 +670,34 @@ const UpdateOrganizationsMembers = async () => {
 };
 
 const SyncOrganizations = async () => {
-  cronLogger.info(
-    "Database Started Syncing Organizations\n-------------------------"
-  );
+  cronLogger.info("Started Syncing Organizations");
+  cronLogger.info("Started extracting organizations");
   await ExtractOrganizationsFromGithub();
+  cronLogger.info("Finished extracting organizations");
+  cronLogger.info("Syncing organizations repositories...");
   await SaveOrganizationsRepositoriesToDB();
+  cronLogger.info("Finished syncing organizations repositories");
   // await UpdateOrganizationsInfo();
+  cronLogger.info("Syncing organizations members...");
   await UpdateOrganizationsMembers();
-  cronLogger.info(
-    "Database Finished Syncing Organizations\n-------------------------"
-  );
+  cronLogger.info("Finished syncing organizations members...");
+  cronLogger.info("Finished Syncing Organizations");
 };
 
 const SyncUsers = async () => {
-  cronLogger.info("Database Started Syncing Users\n-------------------------");
+  cronLogger.info("Started Syncing Users");
+  cronLogger.info("Started extracting Users");
   await ExtractUsersFromGithub();
-  cronLogger.info("Started adding new members");
-  await AddNewMembers();
-  cronLogger.info("Finished adding new members");
+  cronLogger.info("Finished extracting Users");
+  cronLogger.info("Syncing users contributions ...");
   await SaveUserContributionsToDB();
   await CalculateUserTotalCommitsByRepo();
-  cronLogger.info("Database Finished Syncing Users\n-------------------------");
+  cronLogger.info("Finished Syncing users contributions");
+  cronLogger.info("Finished Syncing Users");
 };
 
 const CalculateScore = async () => {
-  cronLogger.info("Cron Started Calculating Score\n-------------------------");
+  cronLogger.info("Started Calculating Score");
   let users = await GetUsersFromDB({}, {});
   for (const user of users) {
     let score = 0;
@@ -771,12 +715,12 @@ const CalculateScore = async () => {
       cronLogger.info(`User: ${user.name}, score calculated: ${score}`);
     }
   }
-  cronLogger.info("Cron Finished Calculating Score\n-------------------------");
+  cronLogger.info("Finished Calculating Score");
 };
 
 const CalculateRepositoriesNumberForOrgs = async () => {
   cronLogger.info(
-    "Cron Started Calculating Repositories Number For The Organizations\n-------------------------"
+    "Started Calculating Repositories Number For The Organizations"
   );
 
   let orgs = await Organization.find({});
@@ -796,14 +740,12 @@ const CalculateRepositoriesNumberForOrgs = async () => {
     }
   }
   cronLogger.info(
-    "Cron Finished Calculating Repositories Number For The Organizations\n-------------------------"
+    "Finished Calculating Repositories Number For The Organizations"
   );
 };
 
 const CalculateCommitsCountForUsers = async () => {
-  cronLogger.info(
-    "Cron Started Calculating Commits Count For The Users\n-------------------------"
-  );
+  cronLogger.info("Started Calculating Commits Count For The Users");
   let users = await User.find({});
   for (const user of users) {
     let userCommitsCount = 0;
@@ -823,15 +765,11 @@ const CalculateCommitsCountForUsers = async () => {
       );
     }
   }
-  cronLogger.info(
-    "Cron Finished Calculating Commits Count For The Users\n-------------------------"
-  );
+  cronLogger.info("Finished Calculating Commits Count For The Users");
 };
 
 const RankUsersByScore = _usersArray => {
-  cronLogger.info(
-    "Cron Started Ranking Users By Score\n-------------------------"
-  );
+  cronLogger.info("Cron Started Ranking Users By Score");
   let startingRank = 1;
   let currentRank = startingRank;
   let rankValue = null;
@@ -851,16 +789,12 @@ const RankUsersByScore = _usersArray => {
     rankValue = user.score;
   });
 
-  cronLogger.info(
-    "Cron Finished Ranking Users By Score\n-------------------------"
-  );
+  cronLogger.info("Cron Finished Ranking Users By Score");
   return userRanks;
 };
 
 const RankUsersByContributions = _usersArray => {
-  cronLogger.info(
-    "Cron Started Ranking Users By Contributions\n-------------------------"
-  );
+  cronLogger.info("Cron Started Ranking Users By Contributions");
   let startingRank = 1;
   let currentRank = startingRank;
   let rankValue = null;
@@ -880,16 +814,12 @@ const RankUsersByContributions = _usersArray => {
     rankValue = user.commitsTotalCount;
   });
 
-  cronLogger.info(
-    "Cron Finished Ranking Users By Contributions\n-------------------------"
-  );
+  cronLogger.info("Cron Finished Ranking Users By Contributions");
   return userRanks;
 };
 
 const UpdateUsersScoreRanks = async () => {
-  cronLogger.info(
-    "Cron Started Updating Users Score Ranks\n-------------------------"
-  );
+  cronLogger.info("Started Updating Users Score Ranks");
   let users = await User.find({}, "username score").sort({
     score: -1,
     _id: 1,
@@ -907,15 +837,11 @@ const UpdateUsersScoreRanks = async () => {
       }
     }
   }
-  cronLogger.info(
-    "Cron Finished Updating Users Score Ranks\n-------------------------"
-  );
+  cronLogger.info("Finished Updating Users Score Ranks");
 };
 
 const UpdateUsersContributionsRanks = async () => {
-  cronLogger.info(
-    "Cron Started Updating Users Contributions Ranks\n-------------------------"
-  );
+  cronLogger.info("Started Updating Users Contributions Ranks");
   let users = await User.find({}, "username commitsTotalCount").sort({
     commitsTotalCount: -1,
     _id: 1,
@@ -933,9 +859,7 @@ const UpdateUsersContributionsRanks = async () => {
       }
     }
   }
-  cronLogger.info(
-    "Cron Finished Updating Users Contributions Ranks\n-------------------------"
-  );
+  cronLogger.info("Finished Updating Users Contributions Ranks");
 };
 
 const UpdateUsersRanks = async () => {
@@ -999,10 +923,11 @@ const CalculateUserTotalCommitsByRepo = async () => {
 };
 
 const CreateStats = async () => {
+  cronLogger.info("Creating Stats...");
   let commitsCount = 0;
   let commitsList = [];
-  const usersCount = await User.count({});
-  const orgsCount = await Organization.count({});
+  const usersCount = await User.countDocuments({});
+  const orgsCount = await Organization.countDocuments({});
   const users = await User.find({}, "commit_contributions");
   for (const user of users) {
     for (const repo of user.commit_contributions) {
@@ -1020,6 +945,7 @@ const CreateStats = async () => {
     total_commits: commitsCount,
   });
   await newStats.save();
+  cronLogger.info("Finished creating Stats");
 };
 
 async function main() {
@@ -1058,6 +984,6 @@ main();
 // listen for uncaught exceptions events
 process.on("uncaughtException", async err => {
   await mongoose.connection.close(); // close the database connection before exiting
-  generalLogger.error(err); // logging the uncaught error
+  cronLogger.error(err); // logging the uncaught error
   process.exit(1); // exit with failure
 });

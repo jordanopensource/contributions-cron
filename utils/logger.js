@@ -1,34 +1,37 @@
-const { createLogger, format, transports, config } = require("winston");
-const { colorize, combine, timestamp, label, printf } = format;
+const { createLogger, format, transports } = require("winston");
+const { colorize, combine, timestamp, label, json, printf } = format;
 
-const jsonFormat = printf(({ level, message, label, timestamp }) => {
-  return JSON.stringify({
-    timestamp,
-    label,
-    level,
-    message,
-  });
+require("dotenv").config({
+  path: "./.env",
 });
 
-const textFormat = printf(({ level, message, label, timestamp }) => {
-  const separator = "-".repeat(label.length * 2);
-  const centerPadding = " ".repeat(
-    Math.abs(label.length * 2 - label.length) / 2.0,
-  );
-  return `${separator}\n${centerPadding}${label.toUpperCase()}\n${separator}\n[${level}] ${message} @ ${timestamp}`;
-});
+const colorizeOpt = {
+  all: true,
+  colors: { info: "white", warning: "yellow", error: "red" },
+};
 
-function newLogger(labelTitle, formatter) {
-  return createLogger({
-    levels: config.syslog.levels,
-    format: combine(
-      colorize(),
-      timestamp(),
-      label({ label: labelTitle }),
-      formatter,
-    ),
-    transports: [new transports.Console()],
-  });
+function newLogger(labelTitle) {
+  if (process.env.LOG_TYPE === "json") {
+    return createLogger({
+      level: process.env.LOG_LEVEL || "info",
+      format: combine(
+        label({ label: labelTitle }),
+        json(),
+        colorize(colorizeOpt)
+      ),
+      transports: [new transports.Console()],
+    });
+  } else {
+    return createLogger({
+      level: process.env.LOG_LEVEL || "info",
+      format: combine(
+        colorize(colorizeOpt),
+        label({ label: labelTitle }),
+        printf(info => `[${info.label}] ${info.level}: ${info.message}`)
+      ),
+      transports: [new transports.Console()],
+    });
+  }
 }
 
-module.exports = { jsonFormat, textFormat, newLogger };
+module.exports = { newLogger };
