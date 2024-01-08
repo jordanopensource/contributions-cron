@@ -258,7 +258,7 @@ const GetUsersFromDB = async (_filter = {}, _sort = {}) => {
 };
 
 const CleanDatabase = async () => {
-  cron.info("Starting database cleanup...");
+  cronLogger.info("Starting database cleanup...");
   const users = await GetUsersFromDB();
   // Create an empty array to group the users we want to delete
   const usersToDelete = [];
@@ -301,11 +301,13 @@ const CleanDatabase = async () => {
         $in: usersToDelete,
       },
     });
-    cron.info(`Users with those ids have been deleted : ${usersToDelete}`);
+    cronLogger.info(
+      `Users with those ids have been deleted : ${usersToDelete}`
+    );
   } catch (error) {
     dbLogger.error("Could not delete users: ", error);
   }
-  cron.info("Database cleanup finished...");
+  cronLogger.info("Database cleanup finished...");
 };
 
 const GetUserCommitContributionFromDB = async _user => {
