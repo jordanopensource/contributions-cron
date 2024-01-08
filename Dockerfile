@@ -3,7 +3,7 @@ ARG DATABASE_HOST=localhost DATABASE_PORT=27017 DATABASE_NAME=top-contributors H
 ###########
 # BUILDER #
 ###########
-FROM node:16-alpine3.14 AS builder
+FROM node:18-alpine3.18 AS builder
 
 # pass the global args
 ARG GITHUB_ACCESS_TOKEN
@@ -28,7 +28,7 @@ RUN npm install
 ###########
 # PROJECT #
 ###########
-FROM node:16-slim
+FROM node:18-slim
 
 # pass the global args
 ARG GITHUB_ACCESS_TOKEN
