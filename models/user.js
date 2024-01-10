@@ -45,6 +45,9 @@ const userSchema = new Schema(
     commit_contributions: {
       type: Array,
     },
+    issue_contributions: {
+      type: Array,
+    },
     score: {
       type: Number,
       default: 0,

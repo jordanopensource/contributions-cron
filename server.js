@@ -406,6 +406,112 @@ const ExtractContributionsForUser = async (
   }
 };
 
+const GetUserIssueContributionFromDB = async _user => {
+  let user = await User.findOne({ username: _user });
+  let userIssues = user?.issue_contributions;
+  if (userIssues) {
+    return userIssues;
+  } else {
+    return [];
+  }
+};
+
+const extractIssuesContributionsForUser = async _user => {
+  let issuesContributions = await GetUserIssueContributionFromDB(
+    _user.username
+  );
+  let endCursor = null;
+  let hasNextPage = true;
+  let issues = [];
+  let newResult = {
+    repositoryName: "",
+    starsCount: 0,
+    url: "",
+    issues: issues,
+  };
+
+  while (hasNextPage) {
+    try {
+      let pageCursor = endCursor === null ? `${endCursor}` : `"${endCursor}"`;
+      let response = await octokit.graphql(`{
+          user(login: "${_user.username}") {
+            contributionsCollection {
+              issueContributions(first: 100, after: ${pageCursor}) {
+                nodes {
+                  occurredAt
+                  issue {
+                    repository {
+                      id
+                      name
+                      stargazerCount
+                      isPrivate
+                      url
+                    }
+                  }
+                }
+                pageInfo {
+                  hasNextPage
+                  endCursor
+                }
+              }
+            }
+          }
+        }`);
+      endCursor =
+        response.user.contributionsCollection.issueContributions.pageInfo
+          .endCursor;
+      let data = response.user.contributionsCollection.issueContributions.nodes;
+      for (const contribution of data) {
+        const issue = contribution.issue;
+        if (!issue.repository.isPrivate) {
+          let IssueObj = {
+            occurredAt: contribution.occurredAt,
+          };
+          newResult = {
+            repositoryName: issue.repository.name,
+            starsCount: issue.repository.stargazerCount,
+            url: issue.repository.url,
+            issues: [...issues, IssueObj],
+          };
+          if (!isRepoBlocked(newResult.repositoryName)) {
+            let repositoryExists = issuesContributions.some(
+              x => x.url === issue.repository.url
+            );
+            if (repositoryExists) {
+              let objToUpdate = issuesContributions.find(
+                element => element.url === issue.repository.url
+              );
+              let issueExists = objToUpdate.issues.some(
+                x => x.occurredAt == contribution.occurredAt
+              );
+
+              objToUpdate["starsCount"] = issue.repository.stargazerCount;
+              if (!issueExists) {
+                objToUpdate.issues = [...objToUpdate.issues, IssueObj];
+              }
+            } else {
+              issuesContributions.push(newResult);
+            }
+          }
+        }
+      }
+      hasNextPage =
+        response.user.contributionsCollection.issueContributions.pageInfo
+          .hasNextPage;
+    } catch (error) {
+      if (error.errors[0].type == "NOT_FOUND") {
+        octokitLogger.error(`The user ${_user.username} was not found`);
+        await User.deleteOne({ username: _user.username });
+        hasNextPage = false;
+      } else {
+        octokitLogger.error(error);
+        throw err;
+      }
+    }
+  }
+  return issuesContributions;
+};
+
 const SaveUserContributionsToDB = async () => {
   const retries = 2;
   const wait = 3600000;
@@ -421,9 +527,13 @@ const SaveUserContributionsToDB = async () => {
         retries,
         wait
       );
+      let userIssues = await extractIssuesContributionsForUser(user);
       await User.updateOne(
         { username: user.username },
-        { commit_contributions: userCommits }
+        {
+          commit_contributions: userCommits,
+          issue_contributions: userIssues,
+        }
       );
       if (process.env.NODE_ENV !== "production") {
         cronLogger.info(`User: ${user.username}, Contributions Updated`);
@@ -587,7 +697,6 @@ const ExtractOrganizationRepositoriesFromGithub = async _organization => {
 
       hasNextPage = await response.organization.repositories.pageInfo
         .hasNextPage;
-      return organizationRepositories;
     } catch (err) {
       if (err.errors[0].type == "NOT_FOUND") {
         octokitLogger.error(
@@ -602,6 +711,7 @@ const ExtractOrganizationRepositoriesFromGithub = async _organization => {
       }
     }
   }
+  return organizationRepositories;
 };
 
 const UpdateOrganizationsInfo = async () => {
