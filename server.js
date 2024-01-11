@@ -251,15 +251,15 @@ const ExtractUsersFromGithub = async () => {
   await SaveUsersToDB(extractedUsers);
 };
 
-const GetUsersFromDB = async (_filter = {}, _sort = {}) => {
-  const results = await User.find(_filter).sort(_sort);
+const GetUsersFromDB = async (_filter = {}, _fields, _sort = {}) => {
+  const results = await User.find(_filter, _fields).sort(_sort);
   const documents = results;
   return documents;
 };
 
 const CleanDatabase = async () => {
   cronLogger.info("Starting database cleanup...");
-  const users = await GetUsersFromDB();
+  const users = await GetUsersFromDB({}, "username");
   // Create an empty array to group the users we want to delete
   const usersToDelete = [];
   for (const user of users) {
@@ -310,8 +310,11 @@ const CleanDatabase = async () => {
   cronLogger.info("Database cleanup finished...");
 };
 
-const GetUserCommitContributionFromDB = async _user => {
-  let user = await User.findOne({ username: _user });
+const GetUserCommitContributionFromDB = async _username => {
+  let user = await User.findOne(
+    { username: _username },
+    "commit_contributions"
+  );
   let userCommits = user.commit_contributions;
   return userCommits;
 };
@@ -407,12 +410,112 @@ const ExtractContributionsForUser = async (
 };
 
 const GetUserIssueContributionFromDB = async _user => {
-  let user = await User.findOne({ username: _user });
+  let user = await User.findOne({ username: _user }, "issue_contributions");
   let userIssues = user?.issue_contributions;
   if (userIssues) {
     return userIssues;
   } else {
     return [];
+  }
+};
+
+const GetUserPrContributionFromDB = async _username => {
+  let user = await User.findOne({ username: _username }, "pr_contributions");
+  let userPrs = user?.pr_contributions;
+  if (userPrs) {
+    return userPrs;
+  } else {
+    return [];
+  }
+};
+
+const extractPrContributionForUser = async _user => {
+  let prContributions = await GetUserPrContributionFromDB(_user.username);
+
+  let pullRequests = [];
+  let newResult = {
+    repositoryName: "",
+    starsCount: 0,
+    url: "",
+    pullRequests: pullRequests,
+  };
+
+  try {
+    let response = await octokit.graphql(`
+      {
+        user(login: "${_user.username}") {
+          contributionsCollection {
+            pullRequestContributionsByRepository {
+              contributions(first: 100) {
+                nodes {
+                  occurredAt
+                  pullRequest {
+                    repository {
+                      id
+                      name
+                      isPrivate
+                      stargazerCount
+                      url
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }`);
+
+    let data =
+      response.user.contributionsCollection
+        .pullRequestContributionsByRepository;
+
+    for (const contribution of data) {
+      let nodes = contribution.contributions.nodes;
+      for (const node of nodes) {
+        if (!node.pullRequest.repository.isPrivate) {
+          let prObj = {
+            occurredAt: node.occurredAt,
+          };
+          newResult = {
+            repositoryName: node.pullRequest.repository.name,
+            starsCount: node.pullRequest.repository.stargazerCount,
+            url: node.pullRequest.repository.url,
+            pullRequests: [...pullRequests, prObj],
+          };
+          if (!isRepoBlocked(newResult.repositoryName)) {
+            let repositoryExists = prContributions.some(
+              x => x.url === newResult.url
+            );
+            if (repositoryExists) {
+              let objToUpdate = prContributions.find(
+                element => element.url === newResult.url
+              );
+
+              let prExists = objToUpdate.pullRequests.some(
+                x => x.occurredAt == node.occurredAt
+              );
+
+              objToUpdate["starsCount"] =
+                node.pullRequest.repository.stargazerCount;
+              if (!prExists) {
+                objToUpdate.pullRequests = [...objToUpdate.pullRequests, prObj];
+              }
+            } else {
+              prContributions.push(newResult);
+            }
+          }
+        }
+      }
+    }
+    return prContributions;
+  } catch (error) {
+    if (error.errors[0].type == "NOT_FOUND") {
+      octokitLogger.error(`The user ${_user.username} was not found`);
+      await User.deleteOne({ username: _user.username });
+    } else {
+      octokitLogger.error(error);
+      throw error;
+    }
   }
 };
 
@@ -528,11 +631,14 @@ const SaveUserContributionsToDB = async () => {
         wait
       );
       let userIssues = await extractIssuesContributionsForUser(user);
+      let userPullRequests = await extractPrContributionForUser(user);
+
       await User.updateOne(
         { username: user.username },
         {
           commit_contributions: userCommits,
           issue_contributions: userIssues,
+          pr_contributions: userPullRequests,
         }
       );
       if (process.env.NODE_ENV !== "production") {
@@ -572,13 +678,16 @@ const SaveOrganizationsToDB = async _organizations => {
 };
 
 const GetOrganizationRepoFromDB = async _organization => {
-  let org = await Organization.findOne({ username: _organization });
+  let org = await Organization.findOne(
+    { username: _organization },
+    "repositories"
+  );
   let orgRepos = org.repositories;
   return orgRepos;
 };
 
 const SaveOrganizationsRepositoriesToDB = async () => {
-  let organizations = await Organization.find({});
+  let organizations = await Organization.find({}, "username");
   for (const org of organizations) {
     try {
       let orgRepos = await ExtractOrganizationRepositoriesFromGithub(org);
@@ -769,7 +878,7 @@ const ExtractOrganizationMembers = async _orgUsername => {
 };
 
 const UpdateOrganizationsMembers = async () => {
-  const orgs = await Organization.find({});
+  const orgs = await Organization.find({}, "username");
   for (const org of orgs) {
     const members = await ExtractOrganizationMembers(org.username);
     if (members) {

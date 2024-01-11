@@ -48,6 +48,9 @@ const userSchema = new Schema(
     issue_contributions: {
       type: Array,
     },
+    pr_contributions: {
+      type: Array,
+    },
     score: {
       type: Number,
       default: 0,
