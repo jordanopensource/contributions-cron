@@ -519,6 +519,110 @@ const extractPrContributionForUser = async _user => {
   }
 };
 
+const GetUserCodeReviewContributionFromDB = async _username => {
+  let user = await User.findOne(
+    { username: _username },
+    "code_review_contributions"
+  );
+  let userCodeReviews = user?.code_review_contributions;
+  if (userCodeReviews) {
+    return userCodeReviews;
+  } else {
+    return [];
+  }
+};
+
+const extractCodeReviewContributionForUser = async _user => {
+  let codeReviewContributions = await GetUserCodeReviewContributionFromDB(
+    _user.username
+  );
+  let codeReviews = [];
+  let newResult = {
+    repositoryName: "",
+    starsCount: 0,
+    url: "",
+    codeReviews: codeReviews,
+  };
+
+  try {
+    let response = await octokit.graphql(`
+      {
+        user(login: "${_user.username}") {
+          contributionsCollection {
+            pullRequestReviewContributionsByRepository {
+              contributions(first: 100) {
+                nodes {
+                  occurredAt
+                  repository {
+                    id
+                    name
+                    isPrivate
+                    stargazerCount
+                    url
+                  }
+                }
+              }
+            }
+          }
+        }
+      }`);
+
+    let data =
+      response.user.contributionsCollection
+        .pullRequestReviewContributionsByRepository;
+
+    for (const contribution of data) {
+      let nodes = contribution.contributions.nodes;
+      for (const node of nodes) {
+        if (!node.repository.isPrivate) {
+          let codeReviewObj = {
+            occurredAt: node.occurredAt,
+          };
+          newResult = {
+            repositoryName: node.repository.name,
+            starsCount: node.repository.stargazerCount,
+            url: node.repository.url,
+            codeReviews: [...codeReviews, codeReviewObj],
+          };
+          if (!isRepoBlocked(newResult.repositoryName)) {
+            let repositoryExists = codeReviewContributions.some(
+              x => x.url === newResult.url
+            );
+            if (repositoryExists) {
+              let objToUpdate = codeReviewContributions.find(
+                element => element.url === newResult.url
+              );
+
+              let prExists = objToUpdate.codeReviews.some(
+                x => x.occurredAt == node.occurredAt
+              );
+
+              objToUpdate["starsCount"] = node.repository.stargazerCount;
+              if (!prExists) {
+                objToUpdate.codeReviews = [
+                  ...objToUpdate.codeReviews,
+                  codeReviewObj,
+                ];
+              }
+            } else {
+              codeReviewContributions.push(newResult);
+            }
+          }
+        }
+      }
+    }
+    return codeReviewContributions;
+  } catch (error) {
+    if (error.errors[0].type == "NOT_FOUND") {
+      octokitLogger.error(`The user ${_user.username} was not found`);
+      await User.deleteOne({ username: _user.username });
+    } else {
+      octokitLogger.error(error);
+      throw error;
+    }
+  }
+};
+
 const extractIssuesContributionsForUser = async _user => {
   let issuesContributions = await GetUserIssueContributionFromDB(
     _user.username
@@ -632,6 +736,7 @@ const SaveUserContributionsToDB = async () => {
       );
       let userIssues = await extractIssuesContributionsForUser(user);
       let userPullRequests = await extractPrContributionForUser(user);
+      let userCodeReviews = await extractCodeReviewContributionForUser(user);
 
       await User.updateOne(
         { username: user.username },
@@ -639,6 +744,7 @@ const SaveUserContributionsToDB = async () => {
           commit_contributions: userCommits,
           issue_contributions: userIssues,
           pr_contributions: userPullRequests,
+          code_review_contributions: userCodeReviews,
         }
       );
       if (process.env.NODE_ENV !== "production") {

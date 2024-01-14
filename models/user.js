@@ -51,6 +51,9 @@ const userSchema = new Schema(
     pr_contributions: {
       type: Array,
     },
+    code_review_contributions: {
+      type: Array,
+    },
     score: {
       type: Number,
       default: 0,
