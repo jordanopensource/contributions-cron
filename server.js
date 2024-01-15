@@ -728,16 +728,16 @@ const SaveUserContributionsToDB = async () => {
   let dateNow = new Date().toISOString();
   let users = await GetUsersFromDB({}, "username");
   for (const user of users) {
+    cronLogger.debug(`Starting to update user ${user.username}`);
+    let userCommits = await retryPromiseWithDelay(
+      ExtractContributionsForUser(user, firstDayOfLastYear, dateNow),
+      retries,
+      wait
+    );
+    let userIssues = await extractIssuesContributionsForUser(user);
+    let userPullRequests = await extractPrContributionForUser(user);
+    let userCodeReviews = await extractCodeReviewContributionForUser(user);
     try {
-      let userCommits = await retryPromiseWithDelay(
-        ExtractContributionsForUser(user, firstDayOfLastYear, dateNow),
-        retries,
-        wait
-      );
-      let userIssues = await extractIssuesContributionsForUser(user);
-      let userPullRequests = await extractPrContributionForUser(user);
-      let userCodeReviews = await extractCodeReviewContributionForUser(user);
-
       await User.updateOne(
         { username: user.username },
         {
@@ -747,6 +747,7 @@ const SaveUserContributionsToDB = async () => {
           code_review_contributions: userCodeReviews,
         }
       );
+      cronLogger.debug(`Finished updating user ${user.username}`);
       if (process.env.NODE_ENV !== "production") {
         cronLogger.info(`User: ${user.username}, Contributions Updated`);
       }
