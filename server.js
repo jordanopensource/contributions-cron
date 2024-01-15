@@ -94,6 +94,10 @@ const ConnectToDB = async () => {
       process.env.CA_PATH +
       "";
   }
+  cronLogger.info(`Log Level: ${process.env.LOG_LEVEL}`);
+  cronLogger.info(`Run Mode: ${process.env.RUN_MODE}`);
+  cronLogger.info(`Blacklist Path: ${blacklistDirPath}`);
+
   await mongoose.connect(DB_URL);
   dbLogger.info("Connected to the database");
   dbLogger.info(`Database Host: ${mongoose.connection.host}`);
