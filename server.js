@@ -664,9 +664,6 @@ const extractIssuesContributionsForUser = async _user => {
             }
           }
         }`);
-      endCursor =
-        response.user.contributionsCollection.issueContributions.pageInfo
-          .endCursor;
       let data = response.user.contributionsCollection.issueContributions.nodes;
       for (const contribution of data) {
         const issue = contribution.issue;
@@ -702,6 +699,9 @@ const extractIssuesContributionsForUser = async _user => {
           }
         }
       }
+      endCursor =
+        response.user.contributionsCollection.issueContributions.pageInfo
+          .endCursor;
       hasNextPage =
         response.user.contributionsCollection.issueContributions.pageInfo
           .hasNextPage;
@@ -726,7 +726,7 @@ const SaveUserContributionsToDB = async () => {
     new Date().getFullYear() - 1
   }-01-01T00:00:00.000Z`;
   let dateNow = new Date().toISOString();
-  let users = await GetUsersFromDB({}, {});
+  let users = await GetUsersFromDB({}, "username");
   for (const user of users) {
     try {
       let userCommits = await retryPromiseWithDelay(
