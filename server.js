@@ -414,12 +414,13 @@ const ExtractContributionsForUser = async _user => {
         await User.deleteOne({ username: _user.username });
       } else {
         octokitLogger.error(error?.errors);
+        throw error;
       }
     } else if (error instanceof RequestError) {
       octokitLogger.error(error.message);
       throw error;
     } else {
-      octokitLogger.error(error);
+      cronLogger.error(error);
       throw error;
     }
   }
@@ -530,12 +531,13 @@ const extractPrContributionForUser = async _user => {
         await User.deleteOne({ username: _user.username });
       } else {
         octokitLogger.error(error?.errors);
+        throw error;
       }
     } else if (error instanceof RequestError) {
       octokitLogger.error(error.message);
       throw error;
     } else {
-      octokitLogger.error(error);
+      cronLogger.error(error);
       throw error;
     }
   }
@@ -640,12 +642,13 @@ const extractCodeReviewContributionForUser = async _user => {
         await User.deleteOne({ username: _user.username });
       } else {
         octokitLogger.error(error?.errors);
+        throw error;
       }
     } else if (error instanceof RequestError) {
       octokitLogger.error(error.message);
       throw error;
     } else {
-      octokitLogger.error(error);
+      cronLogger.error(error);
       throw error;
     }
   }
@@ -707,17 +710,17 @@ const extractIssuesContributionsForUser = async _user => {
           };
           if (!isRepoBlocked(newResult.repositoryName)) {
             let repositoryExists = issuesContributions.some(
-              x => x.url === issue.repository.url
+              x => x.url === newResult.repository.url
             );
             if (repositoryExists) {
               let objToUpdate = issuesContributions.find(
-                element => element.url === issue.repository.url
+                element => element.url === newResult.repository.url
               );
               let issueExists = objToUpdate.issues.some(
                 x => x.occurredAt == contribution.occurredAt
               );
 
-              objToUpdate["starsCount"] = issue.repository.stargazerCount;
+              objToUpdate["starsCount"] = newResult.repository.stargazerCount;
               if (!issueExists) {
                 objToUpdate.issues = [...objToUpdate.issues, IssueObj];
               }
@@ -727,24 +730,26 @@ const extractIssuesContributionsForUser = async _user => {
           }
         }
       }
-      endCursor =
-        response.user.contributionsCollection.issueContributions.pageInfo
-          .endCursor;
       hasNextPage =
         response.user.contributionsCollection.issueContributions.pageInfo
           .hasNextPage;
+      endCursor =
+        response.user.contributionsCollection.issueContributions.pageInfo
+          .endCursor;
     } catch (error) {
       if (error?.errors) {
         if (error?.errors[0]?.type === "NOT_FOUND") {
           await User.deleteOne({ username: _user.username });
+          hasNextPage = false;
         } else {
           octokitLogger.error(error?.errors);
+          throw error;
         }
       } else if (error instanceof RequestError) {
         octokitLogger.error(error.message);
         throw error;
       } else {
-        octokitLogger.error(error);
+        cronLogger.error(error);
         throw error;
       }
     }
