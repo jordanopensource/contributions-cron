@@ -691,7 +691,6 @@ const extractIssuesContributionsForUser = async _user => {
         }`);
       let data = response.user.contributionsCollection.issueContributions.nodes;
       for (const contribution of data) {
-        cronLogger.debug(contribution);
         const issue = contribution.issue;
         if (!issue.repository.isPrivate) {
           let IssueObj = {
@@ -1300,31 +1299,25 @@ async function main() {
   await ConnectToDB();
 
   // Should the cron job sync-users, sync-orgs or just do a cleanup
-  // const runMode = process.env.RUN_MODE;
-  // switch (runMode.toLowerCase()) {
-  //   case "sync-users":
-  //     await SyncUsers();
-  //     break;
-  //   case "sync-orgs":
-  //     await SyncOrganizations();
-  //     break;
-  //   case "cleanup":
-  //     await CleanDatabase();
-  //     break;
-  //   default:
-  //     break;
-  // }
-  // await CalculateScore();
-  // await CalculateCommitsCountForUsers();
-  // await CalculateRepositoriesNumberForOrgs();
-  // await UpdateUsersRanks();
-  // await CreateStats();
-
-  const user = {
-    username: "mahasneh",
-  };
-
-  const userIssues = await extractIssuesContributionsForUser(user);
+  const runMode = process.env.RUN_MODE;
+  switch (runMode.toLowerCase()) {
+    case "sync-users":
+      await SyncUsers();
+      break;
+    case "sync-orgs":
+      await SyncOrganizations();
+      break;
+    case "cleanup":
+      await CleanDatabase();
+      break;
+    default:
+      break;
+  }
+  await CalculateScore();
+  await CalculateCommitsCountForUsers();
+  await CalculateRepositoriesNumberForOrgs();
+  await UpdateUsersRanks();
+  await CreateStats();
 
   await mongoose.connection.close();
   dbLogger.info(
@@ -1335,8 +1328,10 @@ async function main() {
 
 main();
 
-// listen for uncaught exceptions events
-// process.on("uncaughtException", async err => {
-//   await mongoose.connection.close(); // close the database connection before exiting
-//   process.exit(1); // exit with failure
-// });
+if (process.env.LOG_LEVEL !== "debug") {
+  // listen for uncaught exceptions events
+  process.on("uncaughtException", async err => {
+    await mongoose.connection.close(); // close the database connection before exiting
+    process.exit(1); // exit with failure
+  });
+}
