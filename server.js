@@ -1329,7 +1329,7 @@ async function main() {
 main();
 
 // listen for uncaught exceptions events
-process.on("uncaughtException", async err => {
-  await mongoose.connection.close(); // close the database connection before exiting
-  process.exit(1); // exit with failure
-});
+// process.on("uncaughtException", async err => {
+//   await mongoose.connection.close(); // close the database connection before exiting
+//   process.exit(1); // exit with failure
+// });
