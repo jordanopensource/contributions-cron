@@ -661,12 +661,6 @@ const extractIssuesContributionsForUser = async _user => {
   let endCursor = null;
   let hasNextPage = true;
   let issues = [];
-  let newResult = {
-    repositoryName: "",
-    starsCount: 0,
-    url: "",
-    issues: issues,
-  };
 
   while (hasNextPage) {
     try {
@@ -702,7 +696,7 @@ const extractIssuesContributionsForUser = async _user => {
           let IssueObj = {
             occurredAt: contribution.occurredAt,
           };
-          newResult = {
+          const newResult = {
             repositoryName: issue.repository.name,
             starsCount: issue.repository.stargazerCount,
             url: issue.repository.url,
@@ -710,11 +704,11 @@ const extractIssuesContributionsForUser = async _user => {
           };
           if (!isRepoBlocked(newResult.repositoryName)) {
             let repositoryExists = issuesContributions.some(
-              x => x.url === newResult.repository.url
+              x => x.url === newResult.url
             );
             if (repositoryExists) {
               let objToUpdate = issuesContributions.find(
-                element => element.url === newResult.repository.url
+                element => element.url === newResult.url
               );
               let issueExists = objToUpdate.issues.some(
                 x => x.occurredAt == contribution.occurredAt
