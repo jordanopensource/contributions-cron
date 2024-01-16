@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-const { Octokit } = require("octokit");
+const { Octokit, RequestError } = require("octokit");
 const fs = require("fs");
 const { newLogger } = require("./utils/logger.js");
 
@@ -169,11 +169,10 @@ const SaveUsersToDB = async _usersData => {
           user_createdAt: user.createdAt,
         });
         await newUser.save();
-        if (process.env.NODE_ENV !== "production") {
-          dbLogger.info(
-            `User: ${newUser.username} and the location is ${newUser.location} was saved to DB`
-          );
-        }
+
+        dbLogger.debug(
+          `User: ${newUser.username} and the location is ${newUser.location} was saved to DB`
+        );
       } else {
         if (isInJordan(user.location)) {
           await User.updateOne(
@@ -189,7 +188,7 @@ const SaveUsersToDB = async _usersData => {
           );
         } else {
           await User.deleteOne({ username: user.login });
-          dbLogger.info(
+          dbLogger.debug(
             `User ${user.name} has been removed due to the location not being jordan`
           );
         }
@@ -217,39 +216,49 @@ const ExtractUsersFromGithub = async () => {
     let endCursor = null;
     let hasNextPage = true;
     while (hasNextPage) {
-      let pageCursor = endCursor === null ? `${endCursor}` : `"${endCursor}"`;
-      let result = await octokit.graphql(
-        `{
-        search(query: "location:${locationsToSearch[index]} type:user", type: USER, first: 100, after: ${pageCursor}) {
-        nodes {
-          ... on User {
-            login
-            avatarUrl
-            name
-            location
-            bio
-            url
-            company
-            isHireable
-            createdAt
+      try {
+        let pageCursor = endCursor === null ? `${endCursor}` : `"${endCursor}"`;
+        let result = await octokit.graphql(
+          `{
+            search(query: "location:${locationsToSearch[index]} type:user", type: USER, first: 100, after: ${pageCursor}) {
+            nodes {
+              ... on User {
+                login
+                avatarUrl
+                name
+                location
+                bio
+                url
+                company
+                isHireable
+                createdAt
+              }
+            }
+            pageInfo {
+              endCursor
+              hasNextPage
+            }
+            }
+          }`
+        );
+        let newUsers = await result.search.nodes;
+
+        for (const user of newUsers) {
+          if (isInJordan(user.location)) {
+            extractedUsers = [...extractedUsers, user];
           }
         }
-        pageInfo {
-          endCursor
-          hasNextPage
-        }
-        }
-      }`
-      );
-      let newUsers = await result.search.nodes;
-
-      for (const user of newUsers) {
-        if (isInJordan(user.location)) {
-          extractedUsers = [...extractedUsers, user];
+        hasNextPage = await result.search.pageInfo.hasNextPage;
+        endCursor = await result.search.pageInfo.endCursor;
+      } catch (error) {
+        if (error instanceof RequestError) {
+          octokitLogger.error(error.message);
+          throw error;
+        } else {
+          octokitLogger.error(error);
+          throw error;
         }
       }
-      hasNextPage = await result.search.pageInfo.hasNextPage;
-      endCursor = await result.search.pageInfo.endCursor;
     }
   }
   await SaveUsersToDB(extractedUsers);
@@ -323,11 +332,7 @@ const GetUserCommitContributionFromDB = async _username => {
   return userCommits;
 };
 
-const ExtractContributionsForUser = async (
-  _user,
-  _firstDayOfLastYear,
-  _dateNow
-) => {
+const ExtractContributionsForUser = async _user => {
   try {
     let commitsContributions = await GetUserCommitContributionFromDB(
       _user.username
@@ -402,13 +407,20 @@ const ExtractContributionsForUser = async (
       }
     }
     return commitsContributions;
-  } catch (err) {
-    if (err.errors[0].type == "NOT_FOUND") {
-      octokitLogger.error(`The user ${_user.username} was not found`);
-      await User.deleteOne({ username: _user.username });
+  } catch (error) {
+    if (error?.errors) {
+      if (error?.errors[0]?.type === "NOT_FOUND") {
+        octokitLogger.error(`The user ${_user.username} was not found`);
+        await User.deleteOne({ username: _user.username });
+      } else {
+        octokitLogger.error(error?.errors);
+      }
+    } else if (error instanceof RequestError) {
+      octokitLogger.error(error.message);
+      throw error;
     } else {
-      octokitLogger.error(err);
-      throw err;
+      octokitLogger.error(error);
+      throw error;
     }
   }
 };
@@ -513,9 +525,15 @@ const extractPrContributionForUser = async _user => {
     }
     return prContributions;
   } catch (error) {
-    if (error.errors[0].type == "NOT_FOUND") {
-      octokitLogger.error(`The user ${_user.username} was not found`);
-      await User.deleteOne({ username: _user.username });
+    if (error?.errors) {
+      if (error?.errors[0]?.type === "NOT_FOUND") {
+        await User.deleteOne({ username: _user.username });
+      } else {
+        octokitLogger.error(error?.errors);
+      }
+    } else if (error instanceof RequestError) {
+      octokitLogger.error(error.message);
+      throw error;
     } else {
       octokitLogger.error(error);
       throw error;
@@ -617,9 +635,15 @@ const extractCodeReviewContributionForUser = async _user => {
     }
     return codeReviewContributions;
   } catch (error) {
-    if (error.errors[0].type == "NOT_FOUND") {
-      octokitLogger.error(`The user ${_user.username} was not found`);
-      await User.deleteOne({ username: _user.username });
+    if (error?.errors) {
+      if (error?.errors[0]?.type === "NOT_FOUND") {
+        await User.deleteOne({ username: _user.username });
+      } else {
+        octokitLogger.error(error?.errors);
+      }
+    } else if (error instanceof RequestError) {
+      octokitLogger.error(error.message);
+      throw error;
     } else {
       octokitLogger.error(error);
       throw error;
@@ -710,13 +734,18 @@ const extractIssuesContributionsForUser = async _user => {
         response.user.contributionsCollection.issueContributions.pageInfo
           .hasNextPage;
     } catch (error) {
-      if (error.errors[0].type == "NOT_FOUND") {
-        octokitLogger.error(`The user ${_user.username} was not found`);
-        await User.deleteOne({ username: _user.username });
-        hasNextPage = false;
+      if (error?.errors) {
+        if (error?.errors[0]?.type === "NOT_FOUND") {
+          await User.deleteOne({ username: _user.username });
+        } else {
+          octokitLogger.error(error?.errors);
+        }
+      } else if (error instanceof RequestError) {
+        octokitLogger.error(error.message);
+        throw error;
       } else {
         octokitLogger.error(error);
-        throw err;
+        throw error;
       }
     }
   }
@@ -724,20 +753,10 @@ const extractIssuesContributionsForUser = async _user => {
 };
 
 const SaveUserContributionsToDB = async () => {
-  const retries = 2;
-  const wait = 3600000;
-  let firstDayOfLastYear = `${
-    new Date().getFullYear() - 1
-  }-01-01T00:00:00.000Z`;
-  let dateNow = new Date().toISOString();
   let users = await GetUsersFromDB({}, "username");
   for (const user of users) {
     cronLogger.debug(`Starting to update user ${user.username}`);
-    let userCommits = await retryPromiseWithDelay(
-      ExtractContributionsForUser(user, firstDayOfLastYear, dateNow),
-      retries,
-      wait
-    );
+    let userCommits = await ExtractContributionsForUser(user);
     let userIssues = await extractIssuesContributionsForUser(user);
     let userPullRequests = await extractPrContributionForUser(user);
     let userCodeReviews = await extractCodeReviewContributionForUser(user);
@@ -752,9 +771,6 @@ const SaveUserContributionsToDB = async () => {
         }
       );
       cronLogger.debug(`Finished updating user ${user.username}`);
-      if (process.env.NODE_ENV !== "production") {
-        cronLogger.info(`User: ${user.username}, Contributions Updated`);
-      }
     } catch (err) {
       dbLogger.error(`Could not update ${user.username} contributions: ${err}`);
       throw err;
@@ -1316,6 +1332,5 @@ main();
 // listen for uncaught exceptions events
 process.on("uncaughtException", async err => {
   await mongoose.connection.close(); // close the database connection before exiting
-  cronLogger.error(err); // logging the uncaught error
   process.exit(1); // exit with failure
 });
