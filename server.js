@@ -714,7 +714,7 @@ const extractIssuesContributionsForUser = async _user => {
                 x => x.occurredAt == contribution.occurredAt
               );
 
-              objToUpdate["starsCount"] = newResult.repository.stargazerCount;
+              objToUpdate["starsCount"] = newResult.starsCount;
               if (!issueExists) {
                 objToUpdate.issues = [...objToUpdate.issues, IssueObj];
               }
