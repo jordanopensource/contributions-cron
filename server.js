@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { readFile } = require("fs/promises");
 const { Octokit, RequestError } = require("octokit");
 const fs = require("fs");
 const { newLogger } = require("./utils/logger.js");
@@ -53,6 +54,25 @@ const getBlockedUsers = () => {
     });
   });
   return blockedUsers;
+};
+
+const getMembers = async () => {
+  const members = await readFile(`${listDirPath}/members.txt`, "utf8")
+    .then(data => {
+      const members = [];
+      // split the data into an array of names
+      const usernames = data.split("\n");
+
+      for (const username of usernames) {
+        members.push(username);
+      }
+      return members;
+    })
+    .catch(error =>
+      ioLogger.error(`Could not read the members file: ${error}`)
+    );
+
+  return members;
 };
 
 const blockedRepos = getBlockedRepos();
@@ -1033,7 +1053,22 @@ const SyncUsers = async () => {
   await SaveUserContributionsToDB();
   await CalculateUserTotalCommitsByRepo();
   cronLogger.info("Finished syncing contributions");
+  await updateJosaMembers();
   cronLogger.info("Finished syncing users");
+};
+
+const updateJosaMembers = async () => {
+  cronLogger.info("Updating JOSA members...");
+  const members = await getMembers();
+  try {
+    await User.updateMany(
+      { username: { $in: members } },
+      { isJOSAMember: true }
+    );
+    cronLogger.info("Finished updating JOSA members");
+  } catch (error) {
+    dbLogger.error(`Could not update JOSA members: ${error}`);
+  }
 };
 
 const CalculateRepositoriesNumberForOrgs = async () => {
