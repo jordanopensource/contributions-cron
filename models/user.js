@@ -39,6 +39,10 @@ const userSchema = new Schema(
       type: String,
       required: true,
     },
+    isJOSAMember: {
+      type: Boolean,
+      default: false,
+    },
     user_createdAt: {
       type: String,
     },
