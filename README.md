@@ -1,0 +1,145 @@
+<!-- PROJECT LOGO -->
+<br />
+<p align="center">
+  <a href="https://github.com/jordanopensource/contributions-cron">
+    <img src=".github/images/logo.svg" alt="Logo" width="120" height="120">
+  </a>
+
+  <h3 align="center">contributions-cron</h3>
+
+  <p align="center">
+     This is the cron job for the Jordan Top Contributors website.
+    <br />
+    <a href="https://github.com/jordanopensource/contributions-cron"><strong>Explore the docs »</strong></a>
+    <br />
+    <br />
+    <!-- <a href="https://josa.ngo">Visit the Portal</a> -->
+    ·
+    <a href="https://github.com/jordanopensource/contributions-cron/issues">Report Bug</a>
+    ·
+    <a href="https://github.com/jordanopensource/contributions-cron/issues">Request Feature</a>
+  </p>
+</p>
+
+[![Build Status](https://builds.josa.ngo/api/badges/jordanopensource/contributions-api/status.svg?ref=refs/heads/development)](https://builds.josa.ngo/jordanopensource/contributions-api)
+
+<!-- TABLE OF CONTENTS -->
+<details open="open">
+  <summary><h2 style="display: inline-block">Table of Contents</h2></summary>
+  <ol>
+    <li>
+      <a href="#about-the-project">About The Project</a>
+      <ul>
+        <li><a href="#built-with">Built With</a></li>
+      </ul>
+    </li>
+    <li>
+      <a href="#getting-started">Getting Started</a>
+      <ul>
+        <li><a href="#prerequisites">Prerequisites</a></li>
+        <li><a href="#installation">Installation</a></li>
+        <li><a href="#running">Running</a></li>
+      </ul>
+    </li>
+    <li><a href="#usage">Usage</a></li>
+    <li><a href="#roadmap">Roadmap</a></li>
+    <li><a href="#contributing">Contributing</a></li>
+    <li><a href="#license">License</a></li>
+    <li><a href="#contact">Contact</a></li>
+    <li><a href="#acknowledgements">Acknowledgements</a></li>
+  </ol>
+</details>
+
+<!-- ABOUT THE PROJECT -->
+
+## About The Project
+
+This is a Express api client for the Jordan Top Contributors Website, a website that displays the top contributors to open source repositories in Jordan.
+
+### Built With
+
+- [NodeJs](https://nodejs.org/en)
+- [MongoDB](https://www.mongodb.com/)
+
+<!-- GETTING STARTED -->
+
+## Getting Started
+
+To get a local copy up and running follow these simple steps.
+
+### Prerequisites
+
+1. Download and install the latest version of Node.js from [here](https://nodejs.org/en/download/).
+
+### Installation
+
+1. Clone the repo
+   ```sh
+   git clone https://github.com/jordanopensource/contributions-cron.git
+   ```
+2. Install NPM packages
+   ```sh
+   npm install
+   ```
+
+### Running
+
+#### Development
+
+To run the project locally for development purposes:
+
+1. Copy the env file and change the values inside
+
+```sh
+$ cp .env.sample .env
+```
+
+2. Run the project
+
+```sh
+$ npm run dev
+```
+
+2. Go to `http://localhost:3000`
+
+#### Production
+
+To build and run the project locally for production purposes:
+
+1. Launch the production server
+
+```sh
+$ npm run start
+```
+
+<!-- ROADMAP -->
+
+## Roadmap
+
+See the [open issues](https://github.com/jordanopensource/contributions-cron/issues) for a list of proposed features (and known issues).
+
+<!-- CONTRIBUTING -->
+
+## Contributing
+
+Contributions are what make the open source community such an amazing place to learn, inspire, and create. Any contributions you make are **greatly appreciated**.
+
+1. Fork the Project
+2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the Branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+<!-- LICENSE -->
+
+## License
+
+Distributed under the Apache License. See `LICENSE` for more information.
+
+<!-- CONTACT -->
+
+## Contact
+
+Jordan Open Source Association - [@jo_osa](https://twitter.com/@jo_osa) - info@josa.ngo
+
+Project Link: [https://github.com/jordanopensource/contributions-cron](https://github.com/jordanopensource/contributions-cron)
