@@ -4,3 +4,4 @@ load: container.jsonnet
 data:
   repositoryName: josaorg/contributions-cron
   releaseName: contributions-cron
+  buildArgs:
