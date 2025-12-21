@@ -46,8 +46,6 @@ steps:
   - name: build-stable-image
     image: woodpeckerci/plugin-docker-buildx
     settings:
-      buildkit_debug: true
-      dry-run: true
       repo: *docker_repo
       registry: *registry_url
       dockerfile: ./Dockerfile
